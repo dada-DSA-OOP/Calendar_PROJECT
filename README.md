@@ -1,7 +1,7 @@
 # Calendar
 <p align="center">
   <img src="https://upload.wikimedia.org/wikipedia/commons/0/0b/Qt_logo_2016.svg" width="160"/>
-  <img src="https://github.com/user-attachments/assets/f9882deb-3574-4467-a20d-b4a4a0a69e20" width="205"/>
+  <img src="https://github.com/user-attachments/assets/5340c406-a3df-4874-9318-98d8bd1e5dd9" width="205"/>
   <img src="https://upload.wikimedia.org/wikipedia/commons/1/18/ISO_C%2B%2B_Logo.svg" width="100"/>
 </p>
 <p align="center">

@@ -9,6 +9,10 @@
 #include <QLabel>
 #include <QIcon>
 #include <QFrame>
+#include <QMenu>
+#include <QAction>
+#include <QPropertyAnimation>
+#include <QEasingCurve>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -51,13 +55,27 @@ MainWindow::MainWindow(QWidget *parent)
         return line;
     };
 
-    // Nút đặc biệt "New event"
-    QToolButton *btnNewEvent = makeBtn(" Sự kiện mới");
+    // --- Nút chính "Sự kiện mới" ---
+    QToolButton *btnNewEvent = new QToolButton;
+    btnNewEvent->setText("  Sự kiện mới");
+    btnNewEvent->setIcon(QIcon("resource/icons/calendar.png")); // ← thêm icon lịch (đặt trong build/.../resource/icons)
+    btnNewEvent->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    btnNewEvent->setCursor(Qt::PointingHandCursor);
+    btnNewEvent->setPopupMode(QToolButton::MenuButtonPopup);
     btnNewEvent->setObjectName("btnNewEvent");
+
+    // Menu thả xuống
+    QMenu *newEventMenu = new QMenu(btnNewEvent);
+    QAction *actNewMail = newEventMenu->addAction(QIcon("resource/icons/message.png"), "Thư");
+    QAction *actNewEvent = newEventMenu->addAction(QIcon("resource/icons/calendarEvent.png"), "Sự kiện");
+    btnNewEvent->setMenu(newEventMenu);
+
+    homeLayout->addWidget(btnNewEvent);
 
     homeLayout->addWidget(btnNewEvent);
     homeLayout->addWidget(makeBtn("Ngày"));
     homeLayout->addWidget(makeBtn("Tuần làm việc"));
+    homeLayout->addWidget(makeBtn("Tuần"));
     homeLayout->addWidget(makeBtn("Tháng"));
     homeLayout->addWidget(makeBtn("Dạng xem tách"));
     homeLayout->addWidget(makeSeparator());

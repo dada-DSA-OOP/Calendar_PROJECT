@@ -16,6 +16,9 @@
 #include <QCheckBox>
 #include <QPushButton>
 #include <QWidgetAction>
+#include <QGraphicsDropShadowEffect>
+#include <QDesktopServices>
+#include <QUrl>
 
 void MainWindow::resizeEvent(QResizeEvent *event)
 {
@@ -40,6 +43,15 @@ MainWindow::MainWindow(QWidget *parent)
     setMinimumWidth(600);
     resize(1200, 800);     // rộng 1200px, cao 800px
     setMaximumSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX); // cho phép phóng to tự do
+
+    auto addShadowEffect = [](QWidget *widget) {
+        auto *effect = new QGraphicsDropShadowEffect;
+        effect->setBlurRadius(15);
+        effect->setXOffset(0);
+        effect->setYOffset(2);
+        effect->setColor(QColor(0, 0, 0, 80));
+        widget->setGraphicsEffect(effect);
+    };
 
     // ===== Tab bar =====
     QTabBar *tabBar = new QTabBar(this);
@@ -93,6 +105,7 @@ MainWindow::MainWindow(QWidget *parent)
     QAction *actNewEvent = newEventMenu->addAction(QIcon("resource/icons/calendarEvent.png"), "Sự kiện");
     newEventMenu->setObjectName("eventMenu");
     btnNewEvent->setMenu(newEventMenu);
+    addShadowEffect(newEventMenu);
 
     homeLayout->addWidget(btnNewEvent);
 
@@ -114,6 +127,7 @@ MainWindow::MainWindow(QWidget *parent)
     QAction *actSixDay = dayMenu->addAction("6 Ngày");
     QAction *actSevenDay = dayMenu->addAction("7 Ngày");
     dayMenu->setObjectName("dayMenu");
+    addShadowEffect(dayMenu);
 
     btnDay->setMenu(dayMenu);
 
@@ -127,7 +141,6 @@ MainWindow::MainWindow(QWidget *parent)
     //Gạch dọc chia
     homeLayout->addWidget(makeSeparator());
 
-    // --- Nút "Bộ lọc" có menu thả ---
     // --- Nút "Bộ lọc" có menu thả --- //
     QToolButton *btnFilter = new QToolButton;
     btnFilter->setText("  Bộ lọc  ▼");
@@ -138,6 +151,7 @@ MainWindow::MainWindow(QWidget *parent)
     btnFilter->setObjectName("btnFilter");
 
     QMenu *filterMenu = new QMenu(btnFilter);
+    addShadowEffect(filterMenu);
 
     // Hàm tiện ích: tạo item tick kèm submenu (sử dụng QWidgetAction)
     auto makeCheckableWithSubmenu = [&](const QString &text, QMenu *submenu) {
@@ -173,6 +187,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     // === Các mục có submenu === //
     QMenu *menuMeetings = new QMenu("Cuộc họp", filterMenu);
+    addShadowEffect(menuMeetings);
     QAction *actClearAll = menuMeetings->addAction("Bỏ chọn tất cả");
     QObject::connect(actClearAll, &QAction::triggered, [menuMeetings]() {
         for (QAction *a : menuMeetings->actions())
@@ -198,6 +213,7 @@ MainWindow::MainWindow(QWidget *parent)
     }
 
     QMenu *menuCategory = new QMenu("Thể loại", filterMenu);
+    addShadowEffect(menuCategory);
 
     // Nút "Bỏ chọn tất cả"
     QAction *actUncheckCategory = menuCategory->addAction("Bỏ chọn tất cả");
@@ -238,6 +254,7 @@ MainWindow::MainWindow(QWidget *parent)
 
 
     QMenu *menuDisplayAs = new QMenu("Hiển thị như", filterMenu);
+    addShadowEffect(menuDisplayAs);
 
     // ---- Bỏ chọn tất cả ----
     QAction *actUncheckDisplayAs = menuDisplayAs->addAction("Bỏ chọn tất cả");
@@ -264,6 +281,8 @@ MainWindow::MainWindow(QWidget *parent)
 
 
     QMenu *menuRepeat = new QMenu("Lặp lại", filterMenu);
+    addShadowEffect(menuRepeat);
+
     // ---- Danh sách lựa chọn ----
     QStringList displayRepeat = {
         "Đơn",
@@ -277,6 +296,8 @@ MainWindow::MainWindow(QWidget *parent)
     }
 
     QMenu *menuDirect = new QMenu("Trực tiếp", filterMenu);
+     addShadowEffect(menuDirect);
+
     // ---- Danh sách lựa chọn ----
     QStringList displayDirect = {
         "Đã yêu cầu",
@@ -321,9 +342,34 @@ MainWindow::MainWindow(QWidget *parent)
     // --- Help toolbar ---
     QWidget *helpPage = new QWidget;
     QHBoxLayout *helpLayout = new QHBoxLayout(helpPage);
-    helpLayout->setContentsMargins(10,6,10,6);
-    helpLayout->addWidget(new QLabel("Help tools here"));
-    helpLayout->addStretch();
+    helpLayout->setContentsMargins(10, 6, 10, 6);
+    helpLayout->setSpacing(10); // Thêm khoảng cách giữa các nút
+
+    // Sử dụng lại hàm makeBtn đã tạo ở trên
+    // Lưu ý: Đường dẫn icon "resource/icons/..." là ví dụ,
+    // bạn cần chuẩn bị các file icon này.
+    helpLayout->addWidget(makeBtn("Trợ giúp", "resource/icons/question.png"));
+    helpLayout->addWidget(makeBtn("Mẹo", "resource/icons/lightbulb.png"));
+    helpLayout->addWidget(makeBtn("Hỗ trợ", "resource/icons/support.png"));
+    helpLayout->addWidget(makeBtn("Phản hồi", "resource/icons/feedback.png"));
+    helpLayout->addWidget(makeBtn("Xem chẩn đoán", "resource/icons/diagnostics.png"));
+
+    // Gạch dọc chia
+    helpLayout->addWidget(makeSeparator());
+
+    helpLayout->addWidget(makeBtn("dadaCal cho thiết bị di động", "resource/icons/mobile.png"));
+    // 1. Tạo nút và lưu vào biến
+    QToolButton *btnGithub = makeBtn("Đi tới Github", "resource/icons/github.png");
+
+    // 2. Gắn link vào sự kiện click
+    connect(btnGithub, &QToolButton::clicked, this, []() {
+        QDesktopServices::openUrl(QUrl("https://github.com/dada-DSA-OOP/Calendar_PROJECT")); // <-- Thay link Github của bạn ở đây
+    });
+
+    // 3. Thêm nút vào layout
+    helpLayout->addWidget(btnGithub);
+
+    helpLayout->addStretch(); // Đẩy các nút về bên trái
     toolbarStack->addWidget(helpPage);
 
     // ===== Menu cố định =====

@@ -60,36 +60,44 @@ QMenu::indicator:unchecked {
    NÚT BẤM CHUNG (QPushButton)
 -------------------------------- */
 QPushButton {
-    background-color: #e0e0e0;
+    background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                                      stop:0 #f6f7fa, stop:1 #e0e1e5);
     border: 1px solid #bdbdbd;
     border-radius: 4px;
     padding: 6px 12px;
+    font-weight: 500;
 }
 QPushButton:hover {
-    background-color: #d6d6d6;
+    background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                                      stop:0 #e9eaf0, stop:1 #d6d7db);
 }
 QPushButton:pressed {
     background-color: #cccccc;
+    border-color: #999999;
 }
+
 
 /* -------------------------------
    NÚT SỰ KIỆN MỚI (#btnNewEvent)
 -------------------------------- */
 #btnNewEvent {
-    background-color: #0078d4;
+    background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                                      stop:0 #0078d7, stop:1 #005a9e);
     color: white;
     font-weight: bold;
-    border: 1px solid #006bb3;
+    border: 1px solid #005a9e;
     border-radius: 4px;
     padding: 8px 16px;
     min-width: 108px;
 }
 #btnNewEvent:hover {
-    background-color: #0a84e1;
+    background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                                      stop:0 #1085e3, stop:1 #006bba);
 }
 #btnNewEvent:pressed {
     background-color: #005a9e;
 }
+
 #btnNewEvent::menu-button {
     border: none;
     width: 10px;
@@ -104,7 +112,7 @@ QPushButton:pressed {
 -------------------------------- */
 QToolButton {
     background: transparent;
-    border: none;
+    border: 1px solid transparent; /* Thêm border để giữ layout ổn định khi hover */
     padding: 6px 12px;
     border-radius: 4px;
     font-family: 'Segoe UI';
@@ -112,28 +120,14 @@ QToolButton {
     color: #333;
 }
 QToolButton:hover {
-    background: #e6f2ff;
+    background-color: #e5f3ff;
+    border: 1px solid #cce3ff;
     font-weight: bold;
 }
 QToolButton:pressed {
-    background: #cde6fa;
+    background-color: #cde6fa;
     color: #005a9e;
-}
-
-/* Nút ToolButton đặc biệt (#btnNewEvent) */
-QToolButton#btnNewEvent {
-    background-color: #0078d7;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    padding: 6px 14px;
-    font-weight: bold;
-}
-QToolButton#btnNewEvent:hover {
-    background-color: #0094ff;
-}
-QToolButton#btnNewEvent:pressed {
-    background-color: #005fa3;
+    border: 1px solid #a8d2ff;
 }
 
 /* -------------------------------
@@ -212,7 +206,6 @@ QTabBar::tab {
     border: none;
     margin-right: 4px;
     border-radius: 6px 6px 0 0;
-    transition: all 0.15s ease-in-out;
 }
 QTabBar::tab:hover {
     background: #f0f0f0;
@@ -245,10 +238,11 @@ QToolBar {
 QMenu#eventMenu {
     background: white;
     border: 1px solid #bfbfbf;
-    width: 137px;
+    width: 145px;
 }
 QMenu#eventMenu::item {
     padding: 6px 20px;
+    width: 145px;
 }
 QMenu#eventMenu::item:selected {
     background-color: #e5f3ff;
@@ -274,6 +268,7 @@ QMenu#dayMenu {
 }
 QMenu#dayMenu::item {
     padding: 6px 20px;
+    width: 92px;
 }
 QMenu#dayMenu::item:selected {
     background-color: #e5f3ff;

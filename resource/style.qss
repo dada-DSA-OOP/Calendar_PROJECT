@@ -248,32 +248,32 @@ QMenu#eventMenu::item:selected {
     background-color: #e5f3ff;
 }
 QMenu#eventMenu::icon {
-    margin-left: 20px;
+    margin-left: 26px;
     margin-right: 8px;
 }
 
 /* Menu ngày */
-#btnDay::menu-button {
+#btnDay::menu-button, #btnDayView::menu-button {
     border: none;
     width: 10px;
     background-color: transparent;
 }
-#btnDay::menu-button:hover {
+#btnDay::menu-button:hover, #btnDayView::menu-button:hover {
     background-color: #c0ddff;
 }
-QMenu#dayMenu {
+QMenu#dayMenu, QMenu#dayMenuView {
     background: white;
     border: 1px solid #bfbfbf;
     width: 92px;
 }
-QMenu#dayMenu::item {
+QMenu#dayMenu::item, QMenu#dayMenuView::item {
     padding: 6px 20px;
     width: 92px;
 }
-QMenu#dayMenu::item:selected {
+QMenu#dayMenu::item:selected, QMenu#dayMenuView::item:selected {
     background-color: #e5f3ff;
 }
-QMenu#dayMenu::icon {
+QMenu#dayMenu::icon, QMenu#dayMenuView::icon {
     margin-left: 20px;
     margin-right: 8px;
 }
@@ -297,4 +297,8 @@ QMenu#menuCategory::item {
 }
 QMenu#menuCategory::item:selected {
     background-color: #e6e6e6;
+}
+
+QToolButton::menu-indicator {
+    image: none;
 }

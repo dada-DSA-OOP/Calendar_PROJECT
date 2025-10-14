@@ -1,5 +1,8 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
+#include "calendarview.h"
+#include "dayheader.h"
+#include "timeruler.h"
 
 #include <QTabBar>
 #include <QStackedWidget>
@@ -19,17 +22,19 @@
 #include <QGraphicsDropShadowEffect>
 #include <QDesktopServices>
 #include <QUrl>
+#include <QGridLayout>
+#include <QScrollBar>
 
 void MainWindow::resizeEvent(QResizeEvent *event)
 {
     QMainWindow::resizeEvent(event);
 
     bool compact = width() < 900; //Nếu cửa sổ < 900px thì ẩn chữ
+    setMinimumHeight(600);
 
-    for (auto button : this->findChildren<QToolButton*>()) {
-        button->setToolButtonStyle(compact ?
-        Qt::ToolButtonIconOnly :
-        Qt::ToolButtonTextBesideIcon);
+    const auto buttons = this->findChildren<QToolButton*>();
+    for (auto button : buttons) {
+        button->setToolButtonStyle(compact ? Qt::ToolButtonIconOnly : Qt::ToolButtonTextBesideIcon);
     }
 }
 
@@ -76,33 +81,6 @@ MainWindow::MainWindow(QWidget *parent)
     QMenu *filterMenu = new QMenu(btnFilter);
     addShadowEffect(filterMenu);
 
-    // Hàm tiện ích: tạo item tick kèm submenu (sử dụng QWidgetAction)
-    auto makeCheckableWithSubmenu = [&](const QString &text, QMenu *submenu) {
-        QWidget *w = new QWidget;
-        QHBoxLayout *layout = new QHBoxLayout(w);
-        layout->setContentsMargins(10, 2, 6, 2);
-
-        QCheckBox *chk = new QCheckBox(text);
-        chk->setChecked(true);
-        QPushButton *btn = new QPushButton("▼");
-        btn->setFlat(true);
-        btn->setFixedSize(20, 20);
-        btn->setFocusPolicy(Qt::NoFocus);
-
-        layout->addWidget(chk);
-        layout->addStretch();
-        layout->addWidget(btn);
-
-        QWidgetAction *act = new QWidgetAction(filterMenu);
-        act->setDefaultWidget(w);
-        filterMenu->addAction(act);
-
-        QObject::connect(btn, &QPushButton::clicked, [submenu, btn]() {
-            submenu->exec(btn->mapToGlobal(QPoint(0, btn->height())));
-        });
-        return chk;
-    };
-
     QAction *actAppointment = filterMenu->addAction("Cuộc hẹn");
     actAppointment->setCheckable(true);
     actAppointment->setChecked(true);
@@ -112,15 +90,17 @@ MainWindow::MainWindow(QWidget *parent)
     QMenu *menuMeetings = new QMenu("Cuộc họp", filterMenu);
     addShadowEffect(menuMeetings);
     QAction *actClearAll = menuMeetings->addAction("Bỏ chọn tất cả");
-    QObject::connect(actClearAll, &QAction::triggered, [menuMeetings]() {
-        for (QAction *a : menuMeetings->actions())
+    QObject::connect(actClearAll, &QAction::triggered, menuMeetings, [menuMeetings]() {
+        const auto actions = menuMeetings->actions();
+        for (QAction *a : actions)
             if (a->isCheckable()) a->setChecked(false);
     });
     menuMeetings->addSeparator();
     QAction *header1 = menuMeetings->addAction("Tôi là người tổ chức");
     header1->setEnabled(false);
     header1->setFont(QFont("Segoe UI", 9, QFont::Bold));
-    for (const QString &t : QStringList{"Đã gửi", "Bản thảo"}) {
+    const QStringList meetingTypes = {"Đã gửi", "Bản thảo"};
+    for (const QString &t : meetingTypes) {
         QAction *a = menuMeetings->addAction("  " + t);
         a->setCheckable(true);
         a->setChecked(true);
@@ -129,7 +109,8 @@ MainWindow::MainWindow(QWidget *parent)
     QAction *header2 = menuMeetings->addAction("Tôi là người dự");
     header2->setEnabled(false);
     header2->setFont(QFont("Segoe UI", 9, QFont::Bold));
-    for (const QString &t : QStringList{"Đã chấp nhận", "Đã từ chối", "Dự định", "Đã hủy bỏ", "Chưa trả lời"}) {
+    const QStringList attendeeStatuses = {"Đã chấp nhận", "Đã từ chối", "Dự định", "Đã hủy bỏ", "Chưa trả lời"};
+    for (const QString &t : attendeeStatuses) {
         QAction *a = menuMeetings->addAction("  " + t);
         a->setCheckable(true);
         a->setChecked(true);
@@ -140,8 +121,9 @@ MainWindow::MainWindow(QWidget *parent)
 
     // Nút "Bỏ chọn tất cả"
     QAction *actUncheckCategory = menuCategory->addAction("Bỏ chọn tất cả");
-    QObject::connect(actUncheckCategory, &QAction::triggered, [menuCategory]() {
-        for (QAction *a : menuCategory->actions())
+    QObject::connect(actUncheckCategory, &QAction::triggered, menuCategory, [menuCategory]() {
+        const auto categoryActions = menuCategory->actions();
+        for (QAction *a : categoryActions)
             if (a->isCheckable()) a->setChecked(false);
     });
     menuCategory->addSeparator();
@@ -181,8 +163,9 @@ MainWindow::MainWindow(QWidget *parent)
 
     // ---- Bỏ chọn tất cả ----
     QAction *actUncheckDisplayAs = menuDisplayAs->addAction("Bỏ chọn tất cả");
-    QObject::connect(actUncheckDisplayAs, &QAction::triggered, [menuDisplayAs]() {
-        for (QAction *a : menuDisplayAs->actions())
+    QObject::connect(actUncheckDisplayAs, &QAction::triggered, menuDisplayAs, [menuDisplayAs]() {
+        const auto actionList = menuDisplayAs->actions();
+        for (QAction *a : actionList)
             if (a->isCheckable()) a->setChecked(false);
     });
     menuDisplayAs->addSeparator();
@@ -234,11 +217,11 @@ MainWindow::MainWindow(QWidget *parent)
     }
 
     // Thêm các mục tick + menu con
-    makeCheckableWithSubmenu("Cuộc họp", menuMeetings);
-    makeCheckableWithSubmenu("Thể loại", menuCategory);
-    makeCheckableWithSubmenu("Hiển thị như", menuDisplayAs);
-    makeCheckableWithSubmenu("Lặp lại", menuRepeat);
-    makeCheckableWithSubmenu("Trực tiếp", menuDirect);
+    filterMenu->addMenu(menuMeetings);
+    filterMenu->addMenu(menuCategory);
+    filterMenu->addMenu(menuDisplayAs);
+    filterMenu->addMenu(menuRepeat);
+    filterMenu->addMenu(menuDirect);
 
     btnFilter->setMenu(filterMenu);
 
@@ -461,8 +444,41 @@ MainWindow::MainWindow(QWidget *parent)
     topLayout->addWidget(separator);
 
     // ===== Main content =====
-    QWidget *mainContent = new QWidget;
-    mainContent->setStyleSheet("background: white;");
+    // Thay thế toàn bộ đoạn code cũ của "Main content" bằng đoạn dưới đây
+    QWidget *calendarContainer = new QWidget;
+    QGridLayout *grid = new QGridLayout(calendarContainer);
+    grid->setSpacing(0);
+    grid->setContentsMargins(0, 0, 0, 0);
+
+    DayHeader *header = new DayHeader;
+    TimeRuler *ruler = new TimeRuler;
+    CalendarView *view = new CalendarView;
+
+    // Widget trống ở góc trên bên trái
+    QWidget *corner = new QWidget;
+    corner->setStyleSheet("background-color: #f5f5f5; border-bottom: 1px solid #dcdcdc; border-right: 1px solid #dcdcdc;");
+    corner->setFixedSize(60, 60);
+
+    grid->addWidget(corner, 0, 0);
+    grid->addWidget(header, 0, 1);
+    grid->addWidget(ruler, 1, 0);
+    grid->addWidget(view, 1, 1);
+
+    // ----- KẾT NỐI THANH CUỘN -----
+    // Kết nối cuộn ngang
+    connect(view->horizontalScrollBar(), &QScrollBar::valueChanged,
+            header, &DayHeader::setScrollOffset);
+
+    // Kết nối cuộn dọc
+    connect(view->verticalScrollBar(), &QScrollBar::valueChanged,
+            ruler, &TimeRuler::setScrollOffset);
+
+    // Cập nhật dayWidth khi cửa sổ resize
+    connect(view, &CalendarView::viewResized, this, [view, header](){
+        header->setDayWidth(view->getDayWidth());
+    });
+    header->setDayWidth(view->getDayWidth());
+
 
     // ===== Tổng layout =====
     QWidget *central = new QWidget(this);
@@ -470,7 +486,25 @@ MainWindow::MainWindow(QWidget *parent)
     mainLayout->setContentsMargins(0,0,0,0);
     mainLayout->setSpacing(0);
     mainLayout->addWidget(topBar, 0, Qt::AlignTop);
-    mainLayout->addWidget(mainContent, 1);
+    // mainLayout->addWidget(calendarView, 1); // <-- XÓA DÒNG NÀY
+    mainLayout->addWidget(calendarContainer, 1); // <-- THAY BẰNG DÒNG NÀY
+    setCentralWidget(central);
+
+    // THÊM CÁC SỰ KIỆN MẪU
+    // Ngày 0 (Thứ hai)
+    view->addEvent("Họp team dự án A", QColor("#3a87ad"), 0, QTime(9, 0), QTime(10, 30));
+    view->addEvent("Họp nhanh với sếp", QColor("#e09445"), 0, QTime(10, 0), QTime(11, 0));
+
+    // Ngày 1 (Thứ ba)
+    // Hai sự kiện giống hệt nhau
+    view->addEvent("Event X", QColor("#8cbb63"), 1, QTime(14, 0), QTime(15, 0));
+    view->addEvent("Event Y", QColor("#af67de"), 1, QTime(14, 0), QTime(15, 0));
+
+    // Ngày 2 (Thứ tư)
+    view->addEvent("Event A", QColor("#8cbb63"), 2, QTime(10, 0), QTime(11, 30));
+    view->addEvent("Event B", QColor("#3a87ad"), 2, QTime(10, 15), QTime(11, 0));
+    view->addEvent("Event C", QColor("#e09445"), 2, QTime(10, 45), QTime(12, 0));
+
     setCentralWidget(central);
 
     // ===== Kết nối =====

@@ -17,13 +17,30 @@ set(PROJECT_SOURCES
         mainwindow.cpp
         mainwindow.h
         mainwindow.ui
-        style.qss
+        resources.qrc
+        calendarview.cpp
+        calendarview.h
+        eventitem.cpp
+        eventitem.h
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
     qt_add_executable(CalendarApp
         MANUAL_FINALIZATION
         ${PROJECT_SOURCES}
+        resources.qrc
+        calendarview.h
+        calendarview.cpp
+        eventitem.h
+        eventitem.cpp
+        dayheader.h
+        dayheader.cpp
+        timeruler.h
+        timeruler.cpp
+        dayheader.h
+        dayheader.cpp
+        timeruler.h
+        timeruler.cpp
 
     )
 # Define target properties for Android with Qt 6 as:

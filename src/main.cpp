@@ -13,6 +13,8 @@ int main(int argc, char *argv[])
     }
 
     MainWindow w;
+    w.setWindowTitle("dadaCalendar");
+    w.setWindowIcon(QIcon("resource/icons/app_icon.png")); // Đặt icon cho cửa sổ
     w.show();
     return a.exec();
 }

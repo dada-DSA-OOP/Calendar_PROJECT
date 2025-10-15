@@ -1,5 +1,9 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
+#include "calendarview.h"
+#include "dayheader.h"
+#include "timeruler.h"
+#include "eventdialog.h"
 
 #include <QTabBar>
 #include <QStackedWidget>
@@ -19,17 +23,22 @@
 #include <QGraphicsDropShadowEffect>
 #include <QDesktopServices>
 #include <QUrl>
+#include <QGridLayout>
+#include <QScrollBar>
+#include <QStyle>
+#include <QCalendarWidget>
+#include <QTextCharFormat>
 
 void MainWindow::resizeEvent(QResizeEvent *event)
 {
     QMainWindow::resizeEvent(event);
 
     bool compact = width() < 900; //Nếu cửa sổ < 900px thì ẩn chữ
+    setMinimumHeight(600);
 
-    for (auto button : this->findChildren<QToolButton*>()) {
-        button->setToolButtonStyle(compact ?
-        Qt::ToolButtonIconOnly :
-        Qt::ToolButtonTextBesideIcon);
+    const auto buttons = this->findChildren<QToolButton*>();
+    for (auto button : buttons) {
+        button->setToolButtonStyle(compact ? Qt::ToolButtonIconOnly : Qt::ToolButtonTextBesideIcon);
     }
 }
 
@@ -76,33 +85,6 @@ MainWindow::MainWindow(QWidget *parent)
     QMenu *filterMenu = new QMenu(btnFilter);
     addShadowEffect(filterMenu);
 
-    // Hàm tiện ích: tạo item tick kèm submenu (sử dụng QWidgetAction)
-    auto makeCheckableWithSubmenu = [&](const QString &text, QMenu *submenu) {
-        QWidget *w = new QWidget;
-        QHBoxLayout *layout = new QHBoxLayout(w);
-        layout->setContentsMargins(10, 2, 6, 2);
-
-        QCheckBox *chk = new QCheckBox(text);
-        chk->setChecked(true);
-        QPushButton *btn = new QPushButton("▼");
-        btn->setFlat(true);
-        btn->setFixedSize(20, 20);
-        btn->setFocusPolicy(Qt::NoFocus);
-
-        layout->addWidget(chk);
-        layout->addStretch();
-        layout->addWidget(btn);
-
-        QWidgetAction *act = new QWidgetAction(filterMenu);
-        act->setDefaultWidget(w);
-        filterMenu->addAction(act);
-
-        QObject::connect(btn, &QPushButton::clicked, [submenu, btn]() {
-            submenu->exec(btn->mapToGlobal(QPoint(0, btn->height())));
-        });
-        return chk;
-    };
-
     QAction *actAppointment = filterMenu->addAction("Cuộc hẹn");
     actAppointment->setCheckable(true);
     actAppointment->setChecked(true);
@@ -112,15 +94,17 @@ MainWindow::MainWindow(QWidget *parent)
     QMenu *menuMeetings = new QMenu("Cuộc họp", filterMenu);
     addShadowEffect(menuMeetings);
     QAction *actClearAll = menuMeetings->addAction("Bỏ chọn tất cả");
-    QObject::connect(actClearAll, &QAction::triggered, [menuMeetings]() {
-        for (QAction *a : menuMeetings->actions())
+    QObject::connect(actClearAll, &QAction::triggered, menuMeetings, [menuMeetings]() {
+        const auto actions = menuMeetings->actions();
+        for (QAction *a : actions)
             if (a->isCheckable()) a->setChecked(false);
     });
     menuMeetings->addSeparator();
     QAction *header1 = menuMeetings->addAction("Tôi là người tổ chức");
     header1->setEnabled(false);
     header1->setFont(QFont("Segoe UI", 9, QFont::Bold));
-    for (const QString &t : QStringList{"Đã gửi", "Bản thảo"}) {
+    const QStringList meetingTypes = {"Đã gửi", "Bản thảo"};
+    for (const QString &t : meetingTypes) {
         QAction *a = menuMeetings->addAction("  " + t);
         a->setCheckable(true);
         a->setChecked(true);
@@ -129,7 +113,8 @@ MainWindow::MainWindow(QWidget *parent)
     QAction *header2 = menuMeetings->addAction("Tôi là người dự");
     header2->setEnabled(false);
     header2->setFont(QFont("Segoe UI", 9, QFont::Bold));
-    for (const QString &t : QStringList{"Đã chấp nhận", "Đã từ chối", "Dự định", "Đã hủy bỏ", "Chưa trả lời"}) {
+    const QStringList attendeeStatuses = {"Đã chấp nhận", "Đã từ chối", "Dự định", "Đã hủy bỏ", "Chưa trả lời"};
+    for (const QString &t : attendeeStatuses) {
         QAction *a = menuMeetings->addAction("  " + t);
         a->setCheckable(true);
         a->setChecked(true);
@@ -140,8 +125,9 @@ MainWindow::MainWindow(QWidget *parent)
 
     // Nút "Bỏ chọn tất cả"
     QAction *actUncheckCategory = menuCategory->addAction("Bỏ chọn tất cả");
-    QObject::connect(actUncheckCategory, &QAction::triggered, [menuCategory]() {
-        for (QAction *a : menuCategory->actions())
+    QObject::connect(actUncheckCategory, &QAction::triggered, menuCategory, [menuCategory]() {
+        const auto categoryActions = menuCategory->actions();
+        for (QAction *a : categoryActions)
             if (a->isCheckable()) a->setChecked(false);
     });
     menuCategory->addSeparator();
@@ -181,8 +167,9 @@ MainWindow::MainWindow(QWidget *parent)
 
     // ---- Bỏ chọn tất cả ----
     QAction *actUncheckDisplayAs = menuDisplayAs->addAction("Bỏ chọn tất cả");
-    QObject::connect(actUncheckDisplayAs, &QAction::triggered, [menuDisplayAs]() {
-        for (QAction *a : menuDisplayAs->actions())
+    QObject::connect(actUncheckDisplayAs, &QAction::triggered, menuDisplayAs, [menuDisplayAs]() {
+        const auto actionList = menuDisplayAs->actions();
+        for (QAction *a : actionList)
             if (a->isCheckable()) a->setChecked(false);
     });
     menuDisplayAs->addSeparator();
@@ -234,11 +221,11 @@ MainWindow::MainWindow(QWidget *parent)
     }
 
     // Thêm các mục tick + menu con
-    makeCheckableWithSubmenu("Cuộc họp", menuMeetings);
-    makeCheckableWithSubmenu("Thể loại", menuCategory);
-    makeCheckableWithSubmenu("Hiển thị như", menuDisplayAs);
-    makeCheckableWithSubmenu("Lặp lại", menuRepeat);
-    makeCheckableWithSubmenu("Trực tiếp", menuDirect);
+    filterMenu->addMenu(menuMeetings);
+    filterMenu->addMenu(menuCategory);
+    filterMenu->addMenu(menuDisplayAs);
+    filterMenu->addMenu(menuRepeat);
+    filterMenu->addMenu(menuDirect);
 
     btnFilter->setMenu(filterMenu);
 
@@ -283,10 +270,11 @@ MainWindow::MainWindow(QWidget *parent)
     // --- Nút chính "Sự kiện mới" ---
     QToolButton *btnNewEvent = new QToolButton;
     btnNewEvent->setText("  Sự kiện mới");
-    btnNewEvent->setIcon(QIcon("resource/icons/calendar.png")); // ← thêm icon lịch (đặt trong build/.../resource/icons)
+    btnNewEvent->setIcon(QIcon("resource/icons/calendar.png"));
     btnNewEvent->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     btnNewEvent->setCursor(Qt::PointingHandCursor);
-    btnNewEvent->setPopupMode(QToolButton::MenuButtonPopup);
+    // THAY ĐỔI: Chuyển từ MenuButtonPopup sang chế độ nút bấm thường
+    // btnNewEvent->setPopupMode(QToolButton::MenuButtonPopup);
     btnNewEvent->setObjectName("btnNewEvent");
 
     // Menu thả xuống
@@ -460,29 +448,232 @@ MainWindow::MainWindow(QWidget *parent)
     separator->setStyleSheet("color: #dcdcdc;");
     topLayout->addWidget(separator);
 
-    // ===== Main content =====
-    QWidget *mainContent = new QWidget;
-    mainContent->setStyleSheet("background: white;");
+    // === MAIN CONTENT ===
 
-    // ===== Tổng layout =====
+    // -- BƯỚC 1: KHỞI TẠO TẤT CẢ CÁC WIDGET CẦN THIẾT --
+
+    // Thanh điều hướng và layout của nó
+    QWidget *dateNavBar = new QWidget;
+    QHBoxLayout *dateNavLayout = new QHBoxLayout(dateNavBar);
+    dateNavLayout->setContentsMargins(10, 5, 10, 5);
+    dateNavLayout->setSpacing(8);
+
+    // Các nút và label trên thanh điều hướng
+    m_btnPrevWeek = new QPushButton;
+    m_btnPrevWeek->setIcon(style()->standardIcon(QStyle::SP_ArrowLeft));
+    m_btnPrevWeek->setObjectName("navButton");
+
+    QPushButton *btnToday = new QPushButton("Hôm nay");
+    btnToday->setObjectName("navButton");
+
+    m_btnNextWeek = new QPushButton;
+    m_btnNextWeek->setIcon(style()->standardIcon(QStyle::SP_ArrowRight));
+    m_btnNextWeek->setObjectName("navButton");
+
+    // THAY THẾ BẰNG KHỐI CODE SAU:
+    m_dateNavButton = new QPushButton;
+    m_dateNavButton->setObjectName("dateNavButton"); // Đặt tên để style QSS
+    m_dateNavButton->setCursor(Qt::PointingHandCursor);
+
+    // Tạo lịch popup
+    m_calendarPopup = new QCalendarWidget;
+
+    // Tên thứ và dịch tháng/năm sang Tiếng Việt
+    m_calendarPopup->setLocale(QLocale(QLocale::Vietnamese));
+
+    m_calendarPopup->setVerticalHeaderFormat(QCalendarWidget::NoVerticalHeader);
+
+    // --- THÊM ĐOẠN CODE NÀY ĐỂ HIGHLIGHT NGÀY HIỆN TẠI ---
+    QTextCharFormat todayFormat;
+    // Tạo một viền màu xanh bao quanh ngày hôm nay
+    todayFormat.setTextOutline(QPen(QColor("#0078d7"), 1));
+    m_calendarPopup->setDateTextFormat(QDate::currentDate(), todayFormat);
+
+    // Dùng QWidgetAction để đưa QCalendarWidget vào menu
+    QWidgetAction *calendarAction = new QWidgetAction(this);
+    calendarAction->setDefaultWidget(m_calendarPopup);
+
+    // Tạo menu để chứa calendar
+    QMenu *calendarMenu = new QMenu(m_dateNavButton);
+    calendarMenu->addAction(calendarAction);
+    m_dateNavButton->setMenu(calendarMenu);
+
+    // Vùng chứa lịch và layout của nó
+    QWidget *calendarContainer = new QWidget;
+    QGridLayout *grid = new QGridLayout(calendarContainer);
+    grid->setSpacing(0);
+    grid->setContentsMargins(0, 0, 0, 0);
+
+    // Các thành phần của lịch
+    m_dayHeader = new DayHeader;
+    TimeRuler *ruler = new TimeRuler;
+    m_calendarView = new CalendarView;
+    m_calendarView->setObjectName("mainCalendarView");
+
+    QWidget *corner = new QWidget;
+    corner->setObjectName("calendarCornerWidget");
+    corner->setFixedSize(60, 60);
+
+
+    // -- BƯỚC 2: THÊM CÁC WIDGET VÀO LAYOUT --
+
+    // Thêm vào thanh điều hướng
+    dateNavLayout->addWidget(m_btnPrevWeek);
+    dateNavLayout->addWidget(btnToday);
+    dateNavLayout->addWidget(m_btnNextWeek);
+    dateNavLayout->addWidget(m_dateNavButton, 1);
+
+    // Thêm vào lưới lịch
+    grid->addWidget(corner, 0, 0);
+    grid->addWidget(m_dayHeader, 0, 1);
+    grid->addWidget(ruler, 1, 0);
+    grid->addWidget(m_calendarView, 1, 1);
+
+    // Thêm vào layout chính của cửa sổ
     QWidget *central = new QWidget(this);
     QVBoxLayout *mainLayout = new QVBoxLayout(central);
     mainLayout->setContentsMargins(0,0,0,0);
     mainLayout->setSpacing(0);
     mainLayout->addWidget(topBar, 0, Qt::AlignTop);
-    mainLayout->addWidget(mainContent, 1);
+    mainLayout->addWidget(dateNavBar);
+    mainLayout->addWidget(calendarContainer, 1);
     setCentralWidget(central);
 
-    // ===== Kết nối =====
+
+    // -- BƯỚC 3: KẾT NỐI TÍN HIỆU (SIGNALS & SLOTS) --
+
+    connect(m_calendarView->horizontalScrollBar(), &QScrollBar::valueChanged, m_dayHeader, &DayHeader::setScrollOffset);
+    connect(m_calendarView->verticalScrollBar(), &QScrollBar::valueChanged, ruler, &TimeRuler::setScrollOffset);
+    connect(m_calendarView, &CalendarView::viewResized, this, [this](){
+        m_dayHeader->setDayWidth(m_calendarView->getDayWidth());
+    });
     connect(tabBar, &QTabBar::currentChanged, this, [=](int index) {
         toolbarStack->setCurrentIndex(index);
     });
+    connect(m_btnPrevWeek, &QPushButton::clicked, this, &MainWindow::showPreviousWeek);
+    connect(m_btnNextWeek, &QPushButton::clicked, this, &MainWindow::showNextWeek);
+    connect(btnToday, &QPushButton::clicked, this, &MainWindow::showToday);
+    connect(btnNewEvent, &QToolButton::clicked, this, &MainWindow::onNewEventClicked);
+    connect(m_calendarPopup, &QCalendarWidget::clicked, this, &MainWindow::onDateSelectedFromPopup);
+
+
+    // -- BƯỚC 4: THÊM DỮ LIỆU MẪU VÀ CẬP NHẬT GIAO DIỆN LẦN ĐẦU --
+
+    QDate monday = QDate::currentDate().addDays(-(QDate::currentDate().dayOfWeek() - 1));
+    m_calendarView->addEvent("Toán rời rạc", QColor("#8cbb63"), QDateTime(monday, QTime(7, 0)), QDateTime(monday, QTime(11, 30)));
+    QDate tuesday = monday.addDays(1);
+    m_calendarView->addEvent("Lập trình hướng đối tượng", QColor("#8cbb63"), QDateTime(tuesday, QTime(13, 0)), QDateTime(tuesday, QTime(17, 30)));
+    m_calendarView->addEvent("Bơi", QColor("#8cbb63"), QDateTime(tuesday, QTime(7, 0)), QDateTime(tuesday, QTime(9, 0)));
+    QDate wednesday = monday.addDays(2);
+    m_calendarView->addEvent("Kiến trúc và tổ chức máy tính", QColor("#8cbb63"), QDateTime(wednesday, QTime(13, 0)), QDateTime(wednesday, QTime(17, 30)));
+    QDate thurday = monday.addDays(3);
+    m_calendarView->addEvent("Thiết kế web", QColor("#8cbb63"), QDateTime(thurday, QTime(7, 0)), QDateTime(thurday, QTime(11, 30)));
+    QDate saturday = monday.addDays(5);
+    m_calendarView->addEvent("Cấu trúc dữ liệu và giải thuật", QColor("#8cbb63"), QDateTime(saturday, QTime(7, 0)), QDateTime(saturday, QTime(11, 30)));
+    QDate nextTuesday = tuesday.addDays(7);
+    m_calendarView->addEvent("Sự kiện tuần sau", Qt::red, QDateTime(nextTuesday, QTime(11, 0)), QDateTime(nextTuesday, QTime(12, 30)));
 
     tabBar->setCurrentIndex(0);
     toolbarStack->setCurrentIndex(0);
+
+    // Gọi hàm này ở cuối cùng, sau khi mọi thứ đã được tạo
+    showToday();
+
+    // --- THÊM MỚI: Tự động cuộn đến 6 giờ sáng ---
+    // Lấy thanh cuộn dọc từ CalendarView
+    QScrollBar *verticalScrollBar = m_calendarView->verticalScrollBar();
+    // Tính toán vị trí pixel tương ứng với 6 giờ sáng
+    int scrollToPosition = 7.5 * m_calendarView->getHourHeight();
+    // Đặt giá trị cho thanh cuộn
+    verticalScrollBar->setValue(scrollToPosition);
 }
 
 MainWindow::~MainWindow()
 {
     delete ui;
+}
+
+// ----- CÁC HÀM LOGIC MỚI -----
+
+void MainWindow::updateCalendarDisplay()
+{
+    // ... code cập nhật label và header giữ nguyên ...
+    QDate endOfWeek = m_currentMonday.addDays(6);
+    QString dateRangeText;
+    QLocale viLocale(QLocale::Vietnamese);
+
+    if (m_currentMonday.month() == endOfWeek.month()) {
+        dateRangeText = viLocale.monthName(m_currentMonday.month()) + ", " + m_currentMonday.toString("yyyy");
+    } else {
+        dateRangeText = viLocale.monthName(m_currentMonday.month()) + " - " + viLocale.monthName(endOfWeek.month()) + ", " + m_currentMonday.toString("yyyy");
+    }
+    m_dateNavButton->setText(dateRangeText);
+    m_calendarPopup->setSelectedDate(m_currentMonday); // Cập nhật ngày được chọn trên lịch popup
+
+    m_dayHeader->updateDates(m_currentMonday);
+
+    // Dòng quan trọng: Báo cho CalendarView biết tuần đã thay đổi
+    m_calendarView->updateViewForDateRange(m_currentMonday);
+}
+
+void MainWindow::showPreviousWeek()
+{
+    m_currentMonday = m_currentMonday.addDays(-7);
+    updateCalendarDisplay();
+}
+
+void MainWindow::showNextWeek()
+{
+    m_currentMonday = m_currentMonday.addDays(7);
+    updateCalendarDisplay();
+}
+
+void MainWindow::showToday()
+{
+    QDate today = QDate::currentDate();
+    // Tính ngày thứ Hai của tuần hiện tại
+    m_currentMonday = today.addDays(-(today.dayOfWeek() - 1));
+    updateCalendarDisplay();
+}
+
+// THÊM HÀM MỚI Ở CUỐI FILE mainwindow.cpp
+void MainWindow::onNewEventClicked()
+{
+    EventDialog dialog(this);
+    if (dialog.exec() == QDialog::Accepted) {
+        // Lấy dữ liệu từ dialog
+        QString title = dialog.title();
+        QDateTime start = dialog.startDateTime();
+        QDateTime end = dialog.endDateTime();
+        QColor color = dialog.categoryColor(); // <-- THAY ĐỔI: Lấy màu từ danh mục
+
+        // Thêm sự kiện vào CalendarView
+        m_calendarView->addEvent(title, color, start, end);
+
+        // Cập nhật lại view để hiển thị sự kiện mới (quan trọng)
+        // Cần đảm bảo view đang hiển thị đúng tuần chứa sự kiện
+        QDate eventDate = start.date();
+        int daysUntilMonday = eventDate.dayOfWeek() - 1;
+        QDate mondayOfEventWeek = eventDate.addDays(-daysUntilMonday);
+
+        // Nếu tuần của sự kiện khác tuần hiện tại, chuyển view đến tuần đó
+        if (m_currentMonday != mondayOfEventWeek) {
+            m_currentMonday = mondayOfEventWeek;
+        }
+
+        updateCalendarDisplay(); // Hàm này sẽ cập nhật cả header và view
+    }
+}
+
+void MainWindow::onDateSelectedFromPopup(const QDate &date)
+{
+    // Tính toán ngày thứ Hai của tuần chứa ngày được chọn
+    int daysToMonday = date.dayOfWeek() - 1;
+    m_currentMonday = date.addDays(-daysToMonday);
+
+    // Cập nhật lại toàn bộ giao diện
+    updateCalendarDisplay();
+
+    // Ẩn menu đi sau khi đã chọn
+    m_dateNavButton->menu()->hide();
 }

@@ -7,39 +7,52 @@
 #include <QGraphicsScene>
 #include <QGraphicsSceneHoverEvent>
 
-// Sửa lại hàm khởi tạo để event thay đổi kích thước theo màn hình main
-EventItem::EventItem(const QString &title, const QColor &color, int day,
-                     const QTime &startTime, const QTime &endTime, QGraphicsItem *parent)
-    : QObject(), // <-- Thêm dòng này để gọi constructor của QObject
-    QGraphicsRectItem(parent), // Hàm này đã có
+// THAY ĐỔI: Sửa hàm khởi tạo
+EventItem::EventItem(const QString &title, const QColor &color,
+                     const QDateTime &startTime, const QDateTime &endTime, QGraphicsItem *parent)
+    : QObject(),
+    QGraphicsRectItem(parent),
     m_title(title), m_color(color),
-    m_day(day), m_startTime(startTime), m_endTime(endTime),
+    m_startTime(startTime), m_endTime(endTime),
     m_isResizing(false)
 {
     setBrush(m_color);
     setPen(Qt::NoPen);
-
-    //Qt cho phép set cờ để dễ dàng kéo thả
     setFlag(QGraphicsItem::ItemIsMovable);
-    setAcceptHoverEvents(true); // <-- Bật hover events
+    setAcceptHoverEvents(true);
 }
 
-// Thêm hàm mới này - logic tính toán được chuyển vào đây
+// THAY ĐỔI: Thêm 2 hàm setter
+void EventItem::setStartTime(const QDateTime &startTime)
+{
+    m_startTime = startTime;
+}
+
+void EventItem::setEndTime(const QDateTime &endTime)
+{
+    m_endTime = endTime;
+}
+
+
+// THAY ĐỔI: Logic updateGeometry giờ sẽ tính toán ngày dựa trên QDateTime
 void EventItem::updateGeometry(double dayWidth, double hourHeight, int subColumn, int totalSubColumns)
 {
-    // Tính toán chiều rộng và vị trí x của cột phụ
-    double subColumnWidth = (dayWidth - 10) / totalSubColumns; // -10 là padding
-    double x = (day() * dayWidth + 5) + (subColumn * subColumnWidth);
+    // Lấy ngày trong tuần (Thứ Hai = 1, ..., Chủ Nhật = 7)
+    int dayOfWeek = m_startTime.date().dayOfWeek(); // 1-7
+    int dayIndex = dayOfWeek - 1; // 0-6
 
-    // Phần tính toán y và height giữ nguyên
-    double y_start = (m_startTime.hour() * 60 + m_startTime.minute()) / 60.0 * hourHeight;
-    double y_end = (m_endTime.hour() * 60 + m_endTime.minute()) / 60.0 * hourHeight;
+    double subColumnWidth = (dayWidth - 10) / totalSubColumns;
+    double x = (dayIndex * dayWidth + 5) + (subColumn * subColumnWidth);
+
+    double y_start = (m_startTime.time().hour() * 60 + m_startTime.time().minute()) / 60.0 * hourHeight;
+    double y_end = (m_endTime.time().hour() * 60 + m_endTime.time().minute()) / 60.0 * hourHeight;
     double height = y_end - y_start;
 
     setPos(x, y_start);
     setRect(0, 0, subColumnWidth, height);
 }
 
+// ... hàm paint và itemChange không thay đổi ...
 void EventItem::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget)
 {
     Q_UNUSED(option);
@@ -90,56 +103,58 @@ QVariant EventItem::itemChange(GraphicsItemChange change, const QVariant &value)
     return QGraphicsRectItem::itemChange(change, value);
 }
 
+
+// THAY ĐỔI: Logic cập nhật khi thả chuột
 void EventItem::mouseReleaseEvent(QGraphicsSceneMouseEvent *event)
 {
+    auto *view = qobject_cast<CalendarView*>(scene()->views().first());
+    if (!view) return;
+
     if (m_isResizing) {
-        // Nếu đang resize, thì kết thúc resize
         m_isResizing = false;
-
-        // Cập nhật lại thời gian kết thúc (m_endTime)
-        auto *view = qobject_cast<CalendarView*>(scene()->views().first());
-        if (!view) return;
-
         const double hourHeight = view->getHourHeight();
+
+        // Tính tổng số phút từ chiều cao mới
         int totalMinutes = qRound(rect().height() / hourHeight * 60.0);
-        long long durationMs = totalMinutes * 60 * 1000;
-        m_endTime = m_startTime.addMSecs(durationMs);
+        // Cập nhật thời gian kết thúc
+        m_endTime = m_startTime.addSecs(totalMinutes * 60);
 
     } else {
-        // Nếu không, xử lý như một thao tác di chuyển (move)
-        // Code này được copy và điều chỉnh từ phiên bản trước
         QGraphicsRectItem::mouseReleaseEvent(event);
-
-        auto *view = qobject_cast<CalendarView*>(scene()->views().first());
-        if (!view) return;
 
         const double dayWidth = view->getDayWidth();
         const double hourHeight = view->getHourHeight();
         if (dayWidth <= 0) return;
 
         QPointF currentPos = pos();
-        int finalDay = qRound((currentPos.x() - 5) / dayWidth);
-        finalDay = qBound(0, finalDay, 6);
-        double finalX = finalDay * dayWidth + 5;
+        // Tính toán chỉ số ngày mới (0-6)
+        int finalDayIndex = qRound((currentPos.x() - 5) / dayWidth);
+        finalDayIndex = qBound(0, finalDayIndex, 6);
 
+        // Tính toán thời gian bắt đầu mới
         const double slotHeight = hourHeight / 4.0;
         int timeSlot = qRound(currentPos.y() / slotHeight);
-        double finalY = timeSlot * slotHeight;
+        int start_minute = timeSlot * 15;
+        QTime newTime(start_minute / 60, start_minute % 60);
 
-        setPos(finalX, finalY);
+        // Lấy ngày bắt đầu của tuần từ CalendarView
+        QDate monday = view->getMondayOfCurrentWeek();
+        QDate newDate = monday.addDays(finalDayIndex);
 
-        m_day = finalDay;
+        // Tính toán khoảng thời gian của sự kiện
+        long long durationMs = m_startTime.msecsTo(m_endTime);
 
-        int start_minute = qRound(finalY / hourHeight * 60.0);
-        QTime newStartTime(start_minute / 60, start_minute % 60);
-
-        long long duration = m_startTime.msecsTo(m_endTime);
-        m_startTime = newStartTime;
-        m_endTime = m_startTime.addMSecs(duration);
+        // Cập nhật lại thời gian bắt đầu và kết thúc
+        m_startTime.setDate(newDate);
+        m_startTime.setTime(newTime);
+        m_endTime = m_startTime.addMSecs(durationMs);
     }
-    emit eventChanged(this); // <-- Thêm dòng này vào cuối hàm
+
+    emit eventChanged(this);
 }
 
+
+// ... các hàm hover và mouse press/move không đổi ...
 void EventItem::hoverMoveEvent(QGraphicsSceneHoverEvent *event)
 {
     // Xác định một vùng nhỏ ở cạnh dưới làm "tay cầm" resize

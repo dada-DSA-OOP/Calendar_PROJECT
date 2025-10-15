@@ -6,7 +6,6 @@ TimeRuler::TimeRuler(QWidget *parent)
 {
     // Đặt chiều rộng cố định cho thước đo
     setFixedWidth(60);
-    setStyleSheet("background-color: #f5f5f5; border-right: 1px solid #dcdcdc;");
 }
 
 void TimeRuler::setScrollOffset(int y)

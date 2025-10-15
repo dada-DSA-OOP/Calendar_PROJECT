@@ -302,3 +302,274 @@ QMenu#menuCategory::item:selected {
 QToolButton::menu-indicator {
     image: none;
 }
+
+QMenu#timeScaleMenu {
+    width: 160px;                 /* Tăng chiều rộng */
+}
+
+QMenu#timeScaleMenu::item {
+    padding: 10px 25px;           /* Tăng khoảng cách lề cho thoáng */
+    background-color: transparent;
+    width: 160px;
+}
+
+QMenu#timeScaleMenu::item:selected {
+    background-color: #e5f3ff;  /* Nền màu xanh dương nổi bật */
+    border-radius: 4px;         /* Bo tròn các góc của vùng chọn */
+}
+
+/* ===================================
+   LƯỚI LỊCH (Main Calendar Grid)
+==================================== */
+QGraphicsView#mainCalendarView {
+    background-color: #ffffff; /* Nền trắng cho khu vực lưới chính */
+    border: none; /* Đảm bảo không có viền thừa */
+}
+
+DayHeader, TimeRuler, QWidget#calendarCornerWidget {
+    background-color: #ffffff; /* Nền trắng đồng bộ */
+    border: none; /* Bỏ hết các border cũ để thiết lập lại */
+}
+
+QWidget#calendarCornerWidget {
+    background-color: #ffffff;
+    border-bottom: 2px solid #aaaaaa; /* Viền dưới đậm hơn */
+    border-right: 2px solid #aaaaaa;  /* Viền phải đậm hơn */
+}
+
+TimeRuler, QWidget#calendarCornerWidget {
+    border-right: 1px solid #f0f0f0;
+}
+
+/* -------------------------------
+   NÚT ĐIỀU HƯỚNG TUẦN
+-------------------------------- */
+QPushButton#navButton {
+    background-color: transparent;
+    border: none;
+    padding: 5px;
+    border-radius: 4px;
+    min-width: 20px;
+}
+
+QPushButton#navButton:hover {
+    background-color: #e9e9e9;
+}
+
+QPushButton#navButton:pressed {
+    background-color: #dcdcdc;
+}
+
+/* -------------------------------
+   NÚT ĐIỀU HƯỚNG NGÀY THÁNG
+-------------------------------- */
+QPushButton#dateNavButton {
+    background-color: transparent;
+    border: none;
+    font: bold 12pt "Segoe UI";
+    color: #202020;
+    padding: 4px 8px;
+    text-align: left;
+    border-radius: 4px;
+}
+QPushButton#dateNavButton:hover {
+    background-color: #f0f0f0;
+}
+QPushButton#dateNavButton::menu-indicator {
+    image: none; /* Ẩn mũi tên mặc định của menu */
+}
+
+/* Style cho lịch popup */
+QCalendarWidget {
+    background-color: white;
+    border: 1px solid #dcdcdc;
+}
+
+/* -------------------------------
+   LỊCH POPUP (QCalendarWidget)
+-------------------------------- */
+QCalendarWidget {
+    background-color: #ffffff;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+}
+
+/* --- Khu vực điều hướng (Tháng/Năm và mũi tên) --- */
+QCalendarWidget QWidget#qt_calendar_navigationbar {
+    background-color: #ffffff;
+    border-bottom: 1px solid #f0f0f0;
+    padding: 4px;
+}
+
+QCalendarWidget QToolButton {
+    height: 30px;
+    width: 30px;
+    background-color: transparent;
+    border: none;
+    border-radius: 4px;
+    color: #333;
+    font-size: 14pt;
+}
+
+QCalendarWidget QToolButton:hover {
+    background-color: #f0f0f0;
+}
+
+QCalendarWidget QMenu {
+    background-color: white;
+}
+
+QCalendarWidget QSpinBox, QCalendarWidget QComboBox {
+    font-size: 10pt;
+    font-weight: bold;
+    border: none;
+    background-color: transparent;
+    padding: 5px;
+}
+
+/* --- Lưới ngày tháng --- */
+QCalendarWidget QTableView {
+    background-color: #ffffff;
+    border: none;
+    selection-background-color: #0078d7; /* Màu nền khi chọn */
+}
+
+/* --- Các ô ngày --- */
+QCalendarWidget QTableView::item {
+    border-radius: 15px; /* Bo tròn mạnh để tạo hình tròn */
+    background-color: transparent;
+    color: #333;
+}
+
+QCalendarWidget QTableView::item:hover {
+    background-color: #f0f0f0;
+}
+
+QCalendarWidget QTableView::item:selected {
+    background-color: #0078d7;
+    color: white;
+}
+
+/* --- Tiêu đề các thứ trong tuần (M, T, W...) --- */
+QCalendarWidget QHeaderView::section {
+    background-color: #ffffff;
+    border: none;
+    padding: 8px 0;
+    font-weight: bold;
+    color: #0078d7;
+    text-transform: uppercase;
+}
+
+/* -------------------------------
+   DIALOG TẠO SỰ KIỆN (EventDialog)
+-------------------------------- */
+QDialog#EventDialog {
+    background-color: #ffffff;
+}
+
+/* --- Nhãn (Tiêu đề, Bắt đầu...) --- */
+EventDialog QLabel {
+    font-size: 9pt;
+    color: #606060;
+    padding-top: 5px;
+}
+
+/* -------------------------------
+   DIALOG TẠO SỰ KIỆN (EventDialog)
+-------------------------------- */
+QDialog#EventDialog {
+    background-color: #ffffff;
+}
+
+/* --- Nhãn (Tiêu đề, Bắt đầu...) --- */
+EventDialog QLabel {
+    font-size: 9pt;
+    color: #606060;
+    padding-top: 5px;
+}
+
+/* --- Các ô nhập liệu (Style Gạch chân hiện đại) --- */
+EventDialog QLineEdit,
+EventDialog QDateEdit,
+EventDialog QComboBox {
+    font-size: 10pt;
+    padding: 8px 2px; /* Tăng padding cho thoáng hơn */
+    background-color: transparent;
+    border: none;
+    border-bottom: 1px solid #dcdcdc; /* Style gạch chân */
+}
+
+EventDialog QLineEdit:focus,
+EventDialog QDateEdit:focus,
+EventDialog QComboBox:focus {
+    border-bottom: 2px solid #0078d7; /* Viền xanh khi được chọn */
+}
+
+/* --- Nút Pull-down cho ComboBox và DateEdit --- */
+EventDialog QDateEdit,
+EventDialog QComboBox {
+    padding-right: 25px; /* Thêm khoảng trống để chứa mũi tên */
+}
+
+EventDialog QDateEdit::down-arrow,
+EventDialog QComboBox::down-arrow {
+    image: url(resource/icons/down-arrow.png);
+    width: 12px;
+    height: 12px;
+}
+
+EventDialog QDateEdit::drop-down,
+EventDialog QComboBox::drop-down {
+    border: none;
+    background-color: transparent;
+    subcontrol-origin: padding;
+    subcontrol-position: center right;
+    width: 25px; /* Tăng chiều rộng vùng bấm */
+    right: 2px;
+}
+
+EventDialog QDateEdit::drop-down:hover,
+EventDialog QComboBox::drop-down:hover {
+    background-color: #f0f0f0;
+    border-radius: 4px;
+}
+
+
+/* --- Nút OK và Cancel --- */
+/* ... (phần style nút OK/Cancel giữ nguyên) ... */
+
+
+/* --- Nút OK và Cancel --- */
+EventDialog QPushButton {
+    min-height: 28px;
+    min-width: 80px;
+}
+
+/* Nút OK - Nút chính */
+QPushButton#okButton {
+    background-color: #0078d7;
+    color: white;
+    font-weight: bold;
+    border: 1px solid #0078d7;
+    border-radius: 4px;
+}
+QPushButton#okButton:hover {
+    background-color: #1085e3;
+}
+QPushButton#okButton:pressed {
+    background-color: #005a9e;
+}
+
+/* Nút Cancel - Nút phụ */
+QPushButton#cancelButton {
+    background-color: #f0f0f0;
+    color: #333;
+    border: 1px solid #dcdcdc;
+    border-radius: 4px;
+}
+QPushButton#cancelButton:hover {
+    background-color: #e0e0e0;
+}
+QPushButton#cancelButton:pressed {
+    background-color: #d0d0d0;
+}

@@ -7,7 +7,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Check-In progress-red?logo=github"/>
   <img src="https://img.shields.io/badge/License-MIT-blue"/>
-  <img src="https://img.shields.io/badge/Qt-6.9.0-brightgreen?logo=qt"/>
+  <img src="https://img.shields.io/badge/Qt-6.10.0-brightgreen?logo=qt"/>
   <img src="https://img.shields.io/badge/Language-C++ qml qtwidgets-blue?logo=cplusplus"/>
   <img src="https://img.shields.io/badge/Version-0-yellow"/>
 </p>

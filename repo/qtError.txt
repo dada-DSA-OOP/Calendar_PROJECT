@@ -1,0 +1,7 @@
+//Lỗi c++ 11 (Vòng lặp for-range của C++11 có thể gây ra việc tách dữ liệu (detach) không cần thiết đối với container của Qt).
+//Thông thường Qt sẽ tự nhận ra, thế nhưng với những biến lưu tạm thời Qt vẫn tự nhận định lặp for cần const.
+//Có thể sửa bằng cách đặt biến cố định [const auto <tên biến>] cho vòng lặp for hoặc biến biến thành qAsConst.
+
+//"Pass a context object as 3rd connect parameter" - (ví dụ: cửa sổ chứa biến bị đóng), nhưng kết nối signal-slot vẫn còn, thì khi signal triggered được phát ra, chương trình sẽ cố gắng gọi hàm lambda. Lúc này, biến đã không còn tồn tại, dẫn đến chương trình bị crash. - Thêm chính biến để hàm theo dõi vào tên hàm, Qt sẽ theo dõi đối tượng này. Nếu đối tượng ngữ cảnh bị hủy, Qt sẽ tự động ngắt kết nối signal-slot, đảm bảo an toàn.
+
+//Lỗi QAction chỉ đơn giản là khai báo xong không sử dụng, Qt chỉ thông báo tránh lãng phí.

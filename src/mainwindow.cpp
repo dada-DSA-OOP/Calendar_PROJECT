@@ -4,6 +4,8 @@
 #include "dayheader.h"
 #include "timeruler.h"
 #include "eventdialog.h"
+#include "sidepanel.h"
+#include "funnytipwidget.h"
 
 #include <QTabBar>
 #include <QStackedWidget>
@@ -28,6 +30,12 @@
 #include <QStyle>
 #include <QCalendarWidget>
 #include <QTextCharFormat>
+#include <QScrollArea>
+#include <QGroupBox>
+#include <QRandomGenerator>
+#include <QRadioButton>
+#include <QTextEdit>
+#include <QMessageBox>
 
 void MainWindow::resizeEvent(QResizeEvent *event)
 {
@@ -39,6 +47,14 @@ void MainWindow::resizeEvent(QResizeEvent *event)
     const auto buttons = this->findChildren<QToolButton*>();
     for (auto button : buttons) {
         button->setToolButtonStyle(compact ? Qt::ToolButtonIconOnly : Qt::ToolButtonTextBesideIcon);
+    }
+    // THÊM MỚI: Giữ vị trí của help panel khi resize cửa sổ
+    if (m_helpPanel && !m_helpPanel->isHidden()) {
+        int panelWidth = m_helpPanel->width();
+        m_helpPanel->setGeometry(width() - panelWidth, m_topBar->height(), panelWidth, height() - m_topBar->height());
+    }
+    if (m_funnyTipWidget) {
+        m_funnyTipWidget->reposition();
     }
 }
 
@@ -405,48 +421,240 @@ MainWindow::MainWindow(QWidget *parent)
     QWidget *helpPage = new QWidget;
     QHBoxLayout *helpLayout = new QHBoxLayout(helpPage);
     helpLayout->setContentsMargins(10, 6, 10, 6);
-    helpLayout->setSpacing(10); // Thêm khoảng cách giữa các nút
+    helpLayout->setSpacing(10);
 
-    // Sử dụng lại hàm makeBtn đã tạo ở trên
-    // Lưu ý: Đường dẫn icon "resource/icons/..." là ví dụ,
-    // bạn cần chuẩn bị các file icon này.
-    helpLayout->addWidget(makeBtn("Trợ giúp", "resource/icons/question.png"));
-    helpLayout->addWidget(makeBtn("Mẹo", "resource/icons/lightbulb.png"));
-    helpLayout->addWidget(makeBtn("Hỗ trợ", "resource/icons/support.png"));
-    helpLayout->addWidget(makeBtn("Phản hồi", "resource/icons/feedback.png"));
-    helpLayout->addWidget(makeBtn("Xem chẩn đoán", "resource/icons/diagnostics.png"));
+    QToolButton *btnShowHelp = makeBtn("Trợ giúp", "resource/icons/question.png");
+    connect(btnShowHelp, &QToolButton::clicked, this, &MainWindow::toggleHelpPanel);
 
-    // Gạch dọc chia
+    helpLayout->addWidget(btnShowHelp);
+
+    QToolButton *btnTips = makeBtn("Mẹo", "resource/icons/lightbulb.png");
+    connect(btnTips, &QToolButton::clicked, this, &MainWindow::toggleTipsPanel);
+
+    helpLayout->addWidget(btnTips);
+
+    QToolButton *btnSupport = makeBtn("Hỗ trợ", "resource/icons/support.png");
+    connect(btnSupport, &QToolButton::clicked, this, &MainWindow::toggleSupportPanel);
+
+    helpLayout->addWidget(btnSupport);
+
+    QToolButton *btnFeedback = makeBtn("Phản hồi", "resource/icons/feedback.png");
+    connect(btnFeedback, &QToolButton::clicked, this, &MainWindow::toggleFeedbackPanel);
+
+    helpLayout->addWidget(btnFeedback);
+
     helpLayout->addWidget(makeSeparator());
-
-    helpLayout->addWidget(makeBtn("dadaCal cho thiết bị di động", "resource/icons/mobile.png"));
-    // 1. Tạo nút và lưu vào biến
     QToolButton *btnGithub = makeBtn("Đi tới Github", "resource/icons/github.png");
-
-    // 2. Gắn link vào sự kiện click
     connect(btnGithub, &QToolButton::clicked, this, []() {
-        QDesktopServices::openUrl(QUrl("https://github.com/dada-DSA-OOP/Calendar_PROJECT")); // <-- Thay link Github của bạn ở đây
+        QDesktopServices::openUrl(QUrl("https://github.com/dada-DSA-OOP/Calendar_PROJECT"));
     });
-
-    // 3. Thêm nút vào layout
     helpLayout->addWidget(btnGithub);
-
-    helpLayout->addStretch(); // Đẩy các nút về bên trái
+    helpLayout->addStretch();
     toolbarStack->addWidget(helpPage);
 
     // ===== Menu cố định =====
-    QWidget *topBar = new QWidget;
-    QVBoxLayout *topLayout = new QVBoxLayout(topBar);
+    m_topBar = new QWidget;
+    m_topBar->setObjectName("topBar");
+    QVBoxLayout *topLayout = new QVBoxLayout(m_topBar);
     topLayout->setContentsMargins(0,0,0,0);
     topLayout->setSpacing(0);
     topLayout->addWidget(tabBar);
     topLayout->addWidget(toolbarStack);
-
     QFrame *separator = new QFrame;
     separator->setFrameShape(QFrame::HLine);
     separator->setFrameShadow(QFrame::Plain);
     separator->setStyleSheet("color: #dcdcdc;");
     topLayout->addWidget(separator);
+
+    // ===============================================================
+    // === BẮT ĐẦU PHẦN SỬA LỖI: TẠO NỘI DUNG CHO CÁC PANEL ===
+    // ===============================================================
+
+    // --- 1. Chuẩn bị nội dung cho Help Panel ---
+    QWidget *helpContentWidget = new QWidget;
+    QVBoxLayout *helpContentLayout = new QVBoxLayout(helpContentWidget);
+    auto makeHelpLabel = [](const QString &text) {
+        QLabel *label = new QLabel(text);
+        label->setWordWrap(true);
+        return label;
+    };
+
+    QGroupBox *helpGb1 = new QGroupBox("Tạo Sự kiện Mới");
+    helpGb1->setLayout(new QVBoxLayout);
+    helpGb1->layout()->addWidget(makeHelpLabel("- Nhấn nút 'Sự kiện mới' ở tab 'Trang chủ'.\n- Điền đầy đủ thông tin và chọn 'OK'."));
+    helpContentLayout->addWidget(helpGb1);
+
+    QGroupBox *helpGb2 = new QGroupBox("Điều hướng Lịch");
+    helpGb2->setLayout(new QVBoxLayout);
+    helpGb2->layout()->addWidget(makeHelpLabel("- Dùng các nút mũi tên ◀, ▶ để chuyển tuần.\n- Nhấn 'Hôm nay' để quay về tuần hiện tại.\n- Nhấn vào tên tháng để chọn ngày bất kỳ."));
+    helpContentLayout->addWidget(helpGb2);
+
+    QGroupBox *helpGb3 = new QGroupBox("Tương tác với Sự kiện");
+    helpGb3->setLayout(new QVBoxLayout);
+    helpGb3->layout()->addWidget(makeHelpLabel("- Kéo thả để di chuyển sự kiện sang ngày/giờ khác.\n- Kéo cạnh dưới của sự kiện để thay đổi thời gian kết thúc."));
+    helpContentLayout->addWidget(helpGb3);
+    helpContentLayout->addStretch();
+
+    // --- 2. Chuẩn bị nội dung cho Tips Panel ---
+    QWidget *tipsContentWidget = new QWidget;
+    QVBoxLayout *tipsContentLayout = new QVBoxLayout(tipsContentWidget);
+
+    QGroupBox *tipGb1 = new QGroupBox("Đặt làm lịch mặc định");
+    tipGb1->setLayout(new QVBoxLayout);
+    tipGb1->layout()->addWidget(makeHelpLabel("Tính năng này sẽ sớm được cập nhật để bạn có thể quản lý tất cả sự kiện từ một nơi duy nhất!"));
+    tipsContentLayout->addWidget(tipGb1);
+
+    QGroupBox *tipGb2 = new QGroupBox("Thay đổi múi giờ");
+    tipGb2->setLayout(new QVBoxLayout);
+    tipGb2->layout()->addWidget(makeHelpLabel("Đi du lịch? Vào 'Cài đặt' để thay đổi múi giờ, đảm bảo bạn không bao giờ bị trễ hẹn dù đang ở bất cứ đâu."));
+    tipsContentLayout->addWidget(tipGb2);
+    tipsContentLayout->addStretch();
+
+    // --- 3. Tạo các panel và gán nội dung cho chúng ---
+    m_helpPanel = new SidePanel("Trợ giúp", this);
+    m_helpPanel->setContentLayout(helpContentLayout); // Gán layout đã có nội dung
+    m_helpPanel->hide();
+
+    m_tipsPanel = new SidePanel("Mẹo & Thủ thuật", this);
+    m_tipsPanel->setContentLayout(tipsContentLayout); // Gán layout đã có nội dung
+    m_tipsPanel->hide();
+
+    // --- TẠO FUNNY TIP WIDGET BẰNG LỚP MỚI ---
+    m_funnyTipWidget = new FunnyTipWidget(this);
+    m_funnyTipWidget->start();
+
+    // --- 3. Chuẩn bị nội dung cho Support Panel ---
+    QWidget *supportContentWidget = new QWidget;
+    QVBoxLayout *supportContentLayout = new QVBoxLayout(supportContentWidget);
+    supportContentLayout->setSpacing(15);
+
+    // -- Khung cảnh báo thu thập dữ liệu --
+    QGroupBox *dataGroupBox = new QGroupBox("Thu thập dữ liệu chẩn đoán");
+    QVBoxLayout *dataLayout = new QVBoxLayout(dataGroupBox);
+    dataLayout->setSpacing(10);
+
+    QLabel *warningLabel = new QLabel("Để cải thiện ứng dụng, chúng tôi có thể thu thập dữ liệu sử dụng ẩn danh. Dữ liệu này không chứa thông tin cá nhân. Bạn có đồng ý không?");
+    warningLabel->setWordWrap(true);
+    dataLayout->addWidget(warningLabel);
+
+    QRadioButton *agreeButton = new QRadioButton("Đồng ý");
+    QRadioButton *disagreeButton = new QRadioButton("Không, cảm ơn");
+    agreeButton->setChecked(true); // Mặc định là đồng ý
+
+    QHBoxLayout *radioLayout = new QHBoxLayout;
+    radioLayout->addWidget(agreeButton);
+    radioLayout->addWidget(disagreeButton);
+    radioLayout->addStretch();
+    dataLayout->addLayout(radioLayout);
+    supportContentLayout->addWidget(dataGroupBox);
+
+    // -- Khung gửi phản hồi --
+    QGroupBox *feedbackGroupBox = new QGroupBox("Gửi phản hồi cho chúng tôi");
+    QVBoxLayout *feedbackLayout = new QVBoxLayout(feedbackGroupBox);
+    feedbackLayout->setSpacing(10);
+
+    QTextEdit *feedbackTextEdit = new QTextEdit;
+    feedbackTextEdit->setPlaceholderText("Nhập phản hồi của bạn ở đây...");
+    feedbackLayout->addWidget(feedbackTextEdit);
+
+    QPushButton *submitButton = new QPushButton("Gửi đi");
+    submitButton->setObjectName("submitButton");
+    submitButton->setCursor(Qt::PointingHandCursor);
+
+    // Kết nối nút Gửi đi
+    connect(submitButton, &QPushButton::clicked, this, [this, feedbackTextEdit]() {
+        QMessageBox::information(this, "Đã gửi", "Cảm ơn bạn đã gửi phản hồi!");
+        feedbackTextEdit->clear();
+    });
+
+    feedbackLayout->addWidget(submitButton, 0, Qt::AlignRight);
+    supportContentLayout->addWidget(feedbackGroupBox);
+
+    supportContentLayout->addStretch();
+
+    // --- 4. Tạo các panel và gán nội dung ---
+    m_helpPanel = new SidePanel("Trợ giúp", this);
+    m_helpPanel->setContentLayout(helpContentLayout);
+    m_helpPanel->hide();
+
+    m_tipsPanel = new SidePanel("Mẹo & Thủ thuật", this);
+    m_tipsPanel->setContentLayout(tipsContentLayout);
+    m_tipsPanel->hide();
+
+    // TẠO SUPPORT PANEL
+    m_supportPanel = new SidePanel("Hỗ trợ", this);
+    m_supportPanel->setContentLayout(supportContentLayout);
+    m_supportPanel->hide();
+
+    // --- 4. Chuẩn bị nội dung cho Feedback Panel ---
+    QWidget *feedbackContentWidget = new QWidget;
+    QVBoxLayout *feedbackContentLayout = new QVBoxLayout(feedbackContentWidget);
+    feedbackContentLayout->setSpacing(15);
+
+    // -- Khung lựa chọn loại phản hồi --
+    QGroupBox *typeGroupBox = new QGroupBox("Bạn muốn chia sẻ điều gì?");
+    QVBoxLayout *typeLayout = new QVBoxLayout(typeGroupBox);
+
+    QRadioButton *positiveRadio = new QRadioButton("Tôi có một lời khen");
+    QRadioButton *negativeRadio = new QRadioButton("Tôi không thích một điều gì đó");
+    QRadioButton *bugRadio = new QRadioButton("Tôi nghĩ tôi đã tìm thấy một lỗi");
+    positiveRadio->setChecked(true);
+
+    typeLayout->addWidget(positiveRadio);
+    typeLayout->addWidget(negativeRadio);
+    typeLayout->addWidget(bugRadio);
+    feedbackContentLayout->addWidget(typeGroupBox);
+
+    // -- Khu vực nhập liệu động với QStackedWidget --
+    QStackedWidget *stackedWidget = new QStackedWidget;
+
+    // Hàm trợ giúp để tạo một trang nhập liệu
+    auto createFeedbackPage = [&](const QString &placeholder) {
+        QWidget *page = new QWidget;
+        QVBoxLayout *layout = new QVBoxLayout(page);
+        QTextEdit *textEdit = new QTextEdit;
+        textEdit->setPlaceholderText(placeholder);
+        QPushButton *submitButton = new QPushButton("Gửi");
+        submitButton->setObjectName("submitButton");
+        submitButton->setCursor(Qt::PointingHandCursor);
+
+        connect(submitButton, &QPushButton::clicked, this, [this, textEdit]() {
+            QMessageBox::information(this, "Đã gửi", "Cảm ơn bạn đã chia sẻ phản hồi!");
+            textEdit->clear();
+        });
+
+        layout->addWidget(textEdit);
+        layout->addWidget(submitButton, 0, Qt::AlignRight);
+        return page;
+    };
+
+    // Tạo 3 trang tương ứng
+    stackedWidget->addWidget(createFeedbackPage("Hãy cho chúng tôi biết bạn thích điều gì..."));
+    stackedWidget->addWidget(createFeedbackPage("Chúng tôi có thể cải thiện điều gì?"));
+    stackedWidget->addWidget(createFeedbackPage("Vui lòng mô tả lỗi bạn gặp phải..."));
+
+    feedbackContentLayout->addWidget(stackedWidget);
+
+    // Kết nối các radio button để chuyển trang
+    connect(positiveRadio, &QRadioButton::toggled, [=](bool checked){
+        if (checked) stackedWidget->setCurrentIndex(0);
+    });
+    connect(negativeRadio, &QRadioButton::toggled, [=](bool checked){
+        if (checked) stackedWidget->setCurrentIndex(1);
+    });
+    connect(bugRadio, &QRadioButton::toggled, [=](bool checked){
+        if (checked) stackedWidget->setCurrentIndex(2);
+    });
+
+    feedbackContentLayout->addStretch();
+
+    // --- 5. Tạo các panel và gán nội dung ---
+    // ... (code tạo help/tips/support panel giữ nguyên)
+
+    // TẠO FEEDBACK PANEL
+    m_feedbackPanel = new SidePanel("Gửi phản hồi", this);
+    m_feedbackPanel->setContentLayout(feedbackContentLayout);
+    m_feedbackPanel->hide();
 
     // === MAIN CONTENT ===
 
@@ -534,7 +742,7 @@ MainWindow::MainWindow(QWidget *parent)
     QVBoxLayout *mainLayout = new QVBoxLayout(central);
     mainLayout->setContentsMargins(0,0,0,0);
     mainLayout->setSpacing(0);
-    mainLayout->addWidget(topBar, 0, Qt::AlignTop);
+    mainLayout->addWidget(m_topBar, 0, Qt::AlignTop);
     mainLayout->addWidget(dateNavBar);
     mainLayout->addWidget(calendarContainer, 1);
     setCentralWidget(central);
@@ -555,6 +763,9 @@ MainWindow::MainWindow(QWidget *parent)
     connect(btnToday, &QPushButton::clicked, this, &MainWindow::showToday);
     connect(btnNewEvent, &QToolButton::clicked, this, &MainWindow::onNewEventClicked);
     connect(m_calendarPopup, &QCalendarWidget::clicked, this, &MainWindow::onDateSelectedFromPopup);
+
+    connect(btnShowHelp, &QToolButton::clicked, this, &MainWindow::toggleHelpPanel);
+    connect(btnTips, &QToolButton::clicked, this, &MainWindow::toggleTipsPanel);
 
 
     // -- BƯỚC 4: THÊM DỮ LIỆU MẪU VÀ CẬP NHẬT GIAO DIỆN LẦN ĐẦU --
@@ -578,6 +789,8 @@ MainWindow::MainWindow(QWidget *parent)
 
     // Gọi hàm này ở cuối cùng, sau khi mọi thứ đã được tạo
     showToday();
+    m_helpPanel->hide();
+    m_tipsPanel->hide();
 
     // --- THÊM MỚI: Tự động cuộn đến 6 giờ sáng ---
     // Lấy thanh cuộn dọc từ CalendarView
@@ -636,7 +849,6 @@ void MainWindow::showToday()
     updateCalendarDisplay();
 }
 
-// THÊM HÀM MỚI Ở CUỐI FILE mainwindow.cpp
 void MainWindow::onNewEventClicked()
 {
     EventDialog dialog(this);
@@ -676,4 +888,36 @@ void MainWindow::onDateSelectedFromPopup(const QDate &date)
 
     // Ẩn menu đi sau khi đã chọn
     m_dateNavButton->menu()->hide();
+}
+
+void MainWindow::toggleHelpPanel()
+{
+    m_tipsPanel->hidePanel(this->geometry(), m_topBar->height());
+    m_supportPanel->hidePanel(this->geometry(), m_topBar->height());
+    m_feedbackPanel->hidePanel(this->geometry(), m_topBar->height()); // <-- THÊM
+    m_helpPanel->toggleVisibility(this->geometry(), m_topBar->height());
+}
+
+void MainWindow::toggleTipsPanel()
+{
+    m_helpPanel->hidePanel(this->geometry(), m_topBar->height());
+    m_supportPanel->hidePanel(this->geometry(), m_topBar->height());
+    m_feedbackPanel->hidePanel(this->geometry(), m_topBar->height()); // <-- THÊM
+    m_tipsPanel->toggleVisibility(this->geometry(), m_topBar->height());
+}
+
+void MainWindow::toggleSupportPanel()
+{
+    m_helpPanel->hidePanel(this->geometry(), m_topBar->height());
+    m_tipsPanel->hidePanel(this->geometry(), m_topBar->height());
+    m_feedbackPanel->hidePanel(this->geometry(), m_topBar->height()); // <-- THÊM
+    m_supportPanel->toggleVisibility(this->geometry(), m_topBar->height());
+}
+
+void MainWindow::toggleFeedbackPanel()
+{
+    m_helpPanel->hidePanel(this->geometry(), m_topBar->height());
+    m_tipsPanel->hidePanel(this->geometry(), m_topBar->height());
+    m_supportPanel->hidePanel(this->geometry(), m_topBar->height());
+    m_feedbackPanel->toggleVisibility(this->geometry(), m_topBar->height());
 }

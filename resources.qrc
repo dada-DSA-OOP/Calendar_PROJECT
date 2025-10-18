@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/">
+        <file>build/Desktop_Qt_6_10_0_llvm_mingw_64_bit-Debug/resource/style.qss</file>
+    </qresource>
+</RCC>

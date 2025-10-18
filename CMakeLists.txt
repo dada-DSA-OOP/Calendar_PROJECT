@@ -14,33 +14,31 @@ find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets)
 
 set(PROJECT_SOURCES
         main.cpp
-        mainwindow.cpp
-        mainwindow.h
+        mainwindow.cpp mainwindow.h
         mainwindow.ui
         resources.qrc
-        calendarview.cpp
-        calendarview.h
-        eventitem.cpp
-        eventitem.h
+        calendarview.cpp calendarview.h
+        eventitem.cpp eventitem.h
+        dayheader.h dayheader.cpp
+        timeruler.h timeruler.cpp
+        eventdialog.h eventdialog.cpp
+        sidepanel.h sidepanel.cpp
+        funnytipwidget.h funnytipwidget.cpp
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
     qt_add_executable(CalendarApp
         MANUAL_FINALIZATION
         ${PROJECT_SOURCES}
-        resources.qrc
-        calendarview.h
-        calendarview.cpp
-        eventitem.h
-        eventitem.cpp
-        dayheader.h
-        dayheader.cpp
-        timeruler.h
-        timeruler.cpp
-        dayheader.h
-        dayheader.cpp
-        timeruler.h
-        timeruler.cpp
+
+        calendarview.h calendarview.cpp
+        eventitem.h eventitem.cpp
+        dayheader.h dayheader.cpp
+        timeruler.h timeruler.cpp
+        eventdialog.h eventdialog.cpp
+        sidepanel.h sidepanel.cpp
+        funnytipwidget.h funnytipwidget.cpp
+
 
     )
 # Define target properties for Android with Qt 6 as:

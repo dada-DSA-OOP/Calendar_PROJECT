@@ -573,3 +573,101 @@ QPushButton#cancelButton:hover {
 QPushButton#cancelButton:pressed {
     background-color: #d0d0d0;
 }
+
+/* ... (Toàn bộ style cũ giữ nguyên) ... */
+
+/* =====================================================
+   STYLE CHUNG CHO CÁC SIDE PANELS
+===================================================== */
+
+#sidePanel { /* ID chung cho cả hai panel */
+    background-color: #f8f9fa;
+    border-left: 1px solid #dee2e6;
+}
+
+#sidePanelTitleBar {
+    background-color: white;
+    border-bottom: 1px solid #e9ecef;
+}
+
+#sidePanelTitle {
+    font-size: 14pt;
+    font-weight: 600;
+    color: #212529;
+    background: transparent;
+    border: none;
+}
+
+/* Nút đóng chung */
+#sidePanelCloseButton {
+    font-family: "Segoe UI Symbol", sans-serif; /* Font icon chuẩn */
+    font-size: 12px;
+    font-weight: normal;
+    color: #666666;
+    background: transparent;
+    border: 1px solid transparent; /* Viền trong suốt để giữ kích thước */
+    padding: 5px;
+    min-width: 28px;
+    max-width: 28px;
+    min-height: 28px;
+    max-height: 28px;
+    border-radius: 4px;
+}
+
+#sidePanelCloseButton:hover {
+    background-color: #e5e5e5;
+    color: #1a1a1a;
+}
+
+#btnCloseHelp:pressed, #btnCloseTips:pressed {
+    background-color: #d1d1d1;
+}
+
+
+/* -------------------------------
+   NỘI DUNG CUỘN CHUNG
+-------------------------------- */
+#sidePanelScrollArea {
+    border: none;
+    background: transparent;
+}
+
+/* Khung chứa nội dung (QGroupBox) */
+#sidePanel QGroupBox {
+    background-color: #ffffff; /* Nền trắng tinh */
+    border: 1px solid #e1e1e1; /* Viền xám nhạt */
+    border-radius: 0px; /* Góc vuông, đặc trưng của Outlook */
+    margin: 0px 0px 15px 0px; /* Không có margin trái/phải */
+    padding: 15px; /* Tăng padding cho thoáng */
+    font-family: "Segoe UI", sans-serif;
+}
+
+/* Tiêu đề của khung nội dung */
+#sidePanel QGroupBox::title {
+    subcontrol-origin: margin;
+    subcontrol-position: top left;
+    padding: 0 0 10px 0; /* Chỉ có padding dưới để tạo khoảng cách */
+    left: 0px;
+    top: -2px;
+    color: #005a9e; /* MÀU XANH DƯƠNG ĐẬM CỦA OUTLOOK */
+    font-weight: 600;
+    font-size: 11pt;
+}
+
+/* Style cho nút Submit trong Support Panel */
+#submitButton {
+    background-color: #0078d7; /* Màu xanh dương chủ đạo */
+    color: white;
+    font-weight: 600;
+    border: 1px solid #005a9e;
+    border-radius: 4px;
+    padding: 8px 20px;
+}
+
+#submitButton:hover {
+    background-color: #005a9e;
+}
+
+#submitButton:pressed {
+    background-color: #004578;
+}

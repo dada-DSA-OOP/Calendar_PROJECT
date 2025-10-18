@@ -1,5 +1,7 @@
 # Changelog
 
+- 15h10 18/10/2025 Hoàn thành Event Tab Help và thêm một số text vui. - Kiệt
+
 - 23h45 14/10/2025 70% main calendar. Add QtError để kiểm soát lỗi thường gặp. - lequocdat8272
 
 - 13h00 11/10/2025 Hoàn thành menu tab View. - Nguyễn Quốc Đạt

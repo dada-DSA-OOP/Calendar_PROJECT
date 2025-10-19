@@ -4,6 +4,7 @@
 #include <QMainWindow>
 #include <QDate>
 #include <QPushButton>
+#include <QToolButton>
 
 // Forward declaration để tránh include vòng lặp
 class QLabel;
@@ -15,6 +16,8 @@ class QPropertyAnimation;
 
 class SidePanel;
 class FunnyTipWidget;
+
+class QStackedWidget;
 
 QT_BEGIN_NAMESPACE
 namespace Ui {
@@ -59,6 +62,12 @@ private:
     FunnyTipWidget *m_funnyTipWidget;
     SidePanel *m_supportPanel;
     SidePanel *m_feedbackPanel;
+
+    QWidget *m_sidebarCalendar = nullptr;
+    QToolButton *m_btnSidebarToggle = nullptr;
+    bool m_sidebarVisible = false;
+
+    QStackedWidget *m_toolbarStack;
 
 protected:
     void resizeEvent(QResizeEvent *event) override;

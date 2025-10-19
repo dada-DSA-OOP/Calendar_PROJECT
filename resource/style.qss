@@ -206,6 +206,7 @@ QTabBar::tab {
     border: none;
     margin-right: 4px;
     border-radius: 6px 6px 0 0;
+    width: 100px;
 }
 QTabBar::tab:hover {
     background: #f0f0f0;

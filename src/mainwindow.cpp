@@ -44,11 +44,26 @@ void MainWindow::resizeEvent(QResizeEvent *event)
     bool compact = width() < 900; //Nếu cửa sổ < 900px thì ẩn chữ
     setMinimumHeight(600);
 
-    const auto buttons = this->findChildren<QToolButton*>();
-    for (auto button : buttons) {
-        button->setToolButtonStyle(compact ? Qt::ToolButtonIconOnly : Qt::ToolButtonTextBesideIcon);
+    // === BẮT ĐẦU PHẦN SỬA LỖI ===
+    // Duyệt qua từng trang (toolbar) trong QStackedWidget
+    for (int i = 0; i < m_toolbarStack->count(); ++i) {
+        QWidget *toolbarPage = m_toolbarStack->widget(i);
+        if (toolbarPage) {
+            // Tìm các nút chỉ trong trang toolbar đó
+            const auto buttons = toolbarPage->findChildren<QToolButton*>();
+            for (auto button : buttons) {
+                button->setToolButtonStyle(compact ? Qt::ToolButtonIconOnly : Qt::ToolButtonTextBesideIcon);
+            }
+
+            // BƯỚC QUAN TRỌNG NHẤT: Báo cho layout rằng nó cần tính toán lại từ đầu
+            if (toolbarPage->layout()) {
+                toolbarPage->layout()->invalidate();
+            }
+        }
     }
-    // THÊM MỚI: Giữ vị trí của help panel khi resize cửa sổ
+    // === KẾT THÚC PHẦN SỬA LỖI ===
+
+    // Giữ vị trí của help panel khi resize cửa sổ
     if (m_helpPanel && !m_helpPanel->isHidden()) {
         int panelWidth = m_helpPanel->width();
         m_helpPanel->setGeometry(width() - panelWidth, m_topBar->height(), panelWidth, height() - m_topBar->height());
@@ -65,7 +80,7 @@ MainWindow::MainWindow(QWidget *parent)
     ui->setupUi(this);
 
     //Màn hình nhỏ nhất có thể co lại
-    setMinimumWidth(600);
+    setMinimumWidth(700);
     resize(1200, 800);     // rộng 1200px, cao 800px
     setMaximumSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX); // cho phép phóng to tự do
 
@@ -78,6 +93,13 @@ MainWindow::MainWindow(QWidget *parent)
         widget->setGraphicsEffect(effect);
     };
 
+    // === Nút 3 gạch (hamburger) ===
+    m_btnSidebarToggle = new QToolButton(this);
+    m_btnSidebarToggle->setIcon(QIcon("resource/icons/menu.png"));
+    m_btnSidebarToggle->setToolTip("Mở/Đóng Lịch nhỏ");
+    m_btnSidebarToggle->setCursor(Qt::PointingHandCursor);
+    m_btnSidebarToggle->setFixedSize(50, 50);
+
     // ===== Tab bar =====
     QTabBar *tabBar = new QTabBar(this);
     tabBar->addTab("Trang chủ");
@@ -86,12 +108,15 @@ MainWindow::MainWindow(QWidget *parent)
     tabBar->setExpanding(false);
     tabBar->setDrawBase(false);
 
+    tabBar->setMinimumWidth(tabBar->minimumSizeHint().width());
+
     // ===== Toolbar Stack =====
-    QStackedWidget *toolbarStack = new QStackedWidget(this);
+    //QStackedWidget *toolbarStack = new QStackedWidget(this);
+    m_toolbarStack = new QStackedWidget(this);
 
     // --- Nút "Bộ lọc" có menu thả --- //
     QToolButton *btnFilter = new QToolButton;
-    btnFilter->setText("  Bộ lọc  ▼");
+    btnFilter->setText("  Bộ lọc   ▼");
     btnFilter->setIcon(QIcon("resource/icons/filter.png"));
     btnFilter->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     btnFilter->setCursor(Qt::PointingHandCursor);
@@ -343,7 +368,7 @@ MainWindow::MainWindow(QWidget *parent)
     homeLayout->addWidget(makeBtn("In", "resource/icons/printer.png"));
     homeLayout->addStretch();
 
-    toolbarStack->addWidget(homePage);
+    m_toolbarStack->addWidget(homePage);
 
     // --- View toolbar ---
     QWidget *viewPage = new QWidget;
@@ -387,9 +412,6 @@ MainWindow::MainWindow(QWidget *parent)
     QAction *act6min  = timeScaleMenu->addAction("6 phút");
     QAction *act5min  = timeScaleMenu->addAction("5 phút - Nhiều chi tiết");
 
-    timeScaleMenu->setObjectName("timeScaleMenu");
-    addShadowEffect(timeScaleMenu);
-
     // Gán menu vào nút
     btnTimeScale->setMenu(timeScaleMenu);
 
@@ -401,9 +423,6 @@ MainWindow::MainWindow(QWidget *parent)
 
     // Gán menu vào nút
     btnTimeScale->setMenu(timeScaleMenu);
-
-    // Thêm nút vào layout
-    viewLayout->addWidget(btnTimeScale);
 
     viewLayout->addWidget(makeSeparator());
 
@@ -415,7 +434,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     viewLayout->addStretch();
 
-    toolbarStack->addWidget(viewPage);
+    m_toolbarStack->addWidget(viewPage);
 
     // --- Help toolbar ---
     QWidget *helpPage = new QWidget;
@@ -425,22 +444,18 @@ MainWindow::MainWindow(QWidget *parent)
 
     QToolButton *btnShowHelp = makeBtn("Trợ giúp", "resource/icons/question.png");
     connect(btnShowHelp, &QToolButton::clicked, this, &MainWindow::toggleHelpPanel);
-
     helpLayout->addWidget(btnShowHelp);
 
     QToolButton *btnTips = makeBtn("Mẹo", "resource/icons/lightbulb.png");
     connect(btnTips, &QToolButton::clicked, this, &MainWindow::toggleTipsPanel);
-
     helpLayout->addWidget(btnTips);
 
     QToolButton *btnSupport = makeBtn("Hỗ trợ", "resource/icons/support.png");
-    connect(btnSupport, &QToolButton::clicked, this, &MainWindow::toggleSupportPanel);
-
+    connect(btnSupport, &QToolButton::clicked, this, &MainWindow::toggleSupportPanel); // <-- THÊM DÒNG NÀY
     helpLayout->addWidget(btnSupport);
 
     QToolButton *btnFeedback = makeBtn("Phản hồi", "resource/icons/feedback.png");
-    connect(btnFeedback, &QToolButton::clicked, this, &MainWindow::toggleFeedbackPanel);
-
+    connect(btnFeedback, &QToolButton::clicked, this, &MainWindow::toggleFeedbackPanel); // <-- THÊM DÒNG NÀY
     helpLayout->addWidget(btnFeedback);
 
     helpLayout->addWidget(makeSeparator());
@@ -450,7 +465,7 @@ MainWindow::MainWindow(QWidget *parent)
     });
     helpLayout->addWidget(btnGithub);
     helpLayout->addStretch();
-    toolbarStack->addWidget(helpPage);
+    m_toolbarStack->addWidget(helpPage);
 
     // ===== Menu cố định =====
     m_topBar = new QWidget;
@@ -458,8 +473,16 @@ MainWindow::MainWindow(QWidget *parent)
     QVBoxLayout *topLayout = new QVBoxLayout(m_topBar);
     topLayout->setContentsMargins(0,0,0,0);
     topLayout->setSpacing(0);
-    topLayout->addWidget(tabBar);
-    topLayout->addWidget(toolbarStack);
+    // Gộp nút 3 gạch và tabBar chung hàng
+    QWidget *tabBarContainer = new QWidget;
+    QHBoxLayout *tabBarLayout = new QHBoxLayout(tabBarContainer);
+    tabBarLayout->setContentsMargins(8, 0, 0, 0);
+    tabBarLayout->setSpacing(8);
+    tabBarLayout->addWidget(m_btnSidebarToggle);
+    tabBarLayout->addWidget(tabBar);
+    tabBarLayout->addStretch(1);
+    topLayout->addWidget(tabBarContainer);
+    topLayout->addWidget(m_toolbarStack);
     QFrame *separator = new QFrame;
     separator->setFrameShape(QFrame::HLine);
     separator->setFrameShadow(QFrame::Plain);
@@ -509,15 +532,6 @@ MainWindow::MainWindow(QWidget *parent)
     tipGb2->layout()->addWidget(makeHelpLabel("Đi du lịch? Vào 'Cài đặt' để thay đổi múi giờ, đảm bảo bạn không bao giờ bị trễ hẹn dù đang ở bất cứ đâu."));
     tipsContentLayout->addWidget(tipGb2);
     tipsContentLayout->addStretch();
-
-    // --- 3. Tạo các panel và gán nội dung cho chúng ---
-    m_helpPanel = new SidePanel("Trợ giúp", this);
-    m_helpPanel->setContentLayout(helpContentLayout); // Gán layout đã có nội dung
-    m_helpPanel->hide();
-
-    m_tipsPanel = new SidePanel("Mẹo & Thủ thuật", this);
-    m_tipsPanel->setContentLayout(tipsContentLayout); // Gán layout đã có nội dung
-    m_tipsPanel->hide();
 
     // --- TẠO FUNNY TIP WIDGET BẰNG LỚP MỚI ---
     m_funnyTipWidget = new FunnyTipWidget(this);
@@ -684,7 +698,7 @@ MainWindow::MainWindow(QWidget *parent)
     m_dateNavButton->setCursor(Qt::PointingHandCursor);
 
     // Tạo lịch popup
-    m_calendarPopup = new QCalendarWidget;
+    m_calendarPopup = new QCalendarWidget(this);
 
     // Tên thứ và dịch tháng/năm sang Tiếng Việt
     m_calendarPopup->setLocale(QLocale(QLocale::Vietnamese));
@@ -709,6 +723,25 @@ MainWindow::MainWindow(QWidget *parent)
     // Vùng chứa lịch và layout của nó
     QWidget *calendarContainer = new QWidget;
     QGridLayout *grid = new QGridLayout(calendarContainer);
+
+    // === Sidebar lịch nhỏ ===
+    m_sidebarCalendar = new QWidget(this);
+    m_sidebarCalendar->setFixedWidth(0);  // ban đầu ẩn
+    m_sidebarCalendar->setStyleSheet("background-color: white; border-right: 1px solid #ddd;");
+
+    QVBoxLayout *sidebarLayout = new QVBoxLayout(m_sidebarCalendar);
+    sidebarLayout->setContentsMargins(10, 10, 10, 10);
+
+    QCalendarWidget *miniCalendar = new QCalendarWidget(m_sidebarCalendar);
+    miniCalendar->setFixedSize(200, 220);
+    miniCalendar->setLocale(QLocale(QLocale::Vietnamese));
+    miniCalendar->setFirstDayOfWeek(Qt::Monday);
+    sidebarLayout->addWidget(miniCalendar);
+    sidebarLayout->addStretch();
+
+    // THÊM DÒNG KẾT NỐI NÀY
+    connect(miniCalendar, &QCalendarWidget::clicked, this, &MainWindow::onDateSelectedFromPopup);
+
     grid->setSpacing(0);
     grid->setContentsMargins(0, 0, 0, 0);
 
@@ -744,7 +777,16 @@ MainWindow::MainWindow(QWidget *parent)
     mainLayout->setSpacing(0);
     mainLayout->addWidget(m_topBar, 0, Qt::AlignTop);
     mainLayout->addWidget(dateNavBar);
-    mainLayout->addWidget(calendarContainer, 1);
+
+    // Bọc calendarContainer và sidebar chung layout ngang
+    QHBoxLayout *contentLayout = new QHBoxLayout;
+    contentLayout->setContentsMargins(0,0,0,0);
+    contentLayout->setSpacing(0);
+    contentLayout->addWidget(m_sidebarCalendar);
+    contentLayout->addWidget(calendarContainer, 1);
+
+    mainLayout->addLayout(contentLayout, 1);
+
     setCentralWidget(central);
 
 
@@ -756,7 +798,7 @@ MainWindow::MainWindow(QWidget *parent)
         m_dayHeader->setDayWidth(m_calendarView->getDayWidth());
     });
     connect(tabBar, &QTabBar::currentChanged, this, [=](int index) {
-        toolbarStack->setCurrentIndex(index);
+        m_toolbarStack->setCurrentIndex(index);
     });
     connect(m_btnPrevWeek, &QPushButton::clicked, this, &MainWindow::showPreviousWeek);
     connect(m_btnNextWeek, &QPushButton::clicked, this, &MainWindow::showNextWeek);
@@ -785,7 +827,7 @@ MainWindow::MainWindow(QWidget *parent)
     m_calendarView->addEvent("Sự kiện tuần sau", Qt::red, QDateTime(nextTuesday, QTime(11, 0)), QDateTime(nextTuesday, QTime(12, 30)));
 
     tabBar->setCurrentIndex(0);
-    toolbarStack->setCurrentIndex(0);
+    m_toolbarStack->setCurrentIndex(0);
 
     // Gọi hàm này ở cuối cùng, sau khi mọi thứ đã được tạo
     showToday();
@@ -799,6 +841,20 @@ MainWindow::MainWindow(QWidget *parent)
     int scrollToPosition = 7.5 * m_calendarView->getHourHeight();
     // Đặt giá trị cho thanh cuộn
     verticalScrollBar->setValue(scrollToPosition);
+
+    // === Kết nối nút 3 gạch ===
+    connect(m_btnSidebarToggle, &QToolButton::clicked, this, [this]() {
+        int startWidth = m_sidebarCalendar->width();
+        int endWidth = m_sidebarVisible ? 0 : 220;
+        QPropertyAnimation *anim = new QPropertyAnimation(m_sidebarCalendar, "minimumWidth");
+        anim->setDuration(250);
+        anim->setStartValue(startWidth);
+        anim->setEndValue(endWidth);
+        anim->setEasingCurve(QEasingCurve::InOutCubic);
+        anim->start(QAbstractAnimation::DeleteWhenStopped);
+
+        m_sidebarVisible = !m_sidebarVisible;
+    });
 }
 
 MainWindow::~MainWindow()

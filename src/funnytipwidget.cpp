@@ -18,7 +18,7 @@ FunnyTipWidget::FunnyTipWidget(QWidget *parent)
     layout->setContentsMargins(20, 10, 20, 10);
 
     QLabel *iconLabel = new QLabel;
-    iconLabel->setPixmap(QPixmap("resource/icons/smile.png").scaled(15, 15, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    iconLabel->setPixmap(QPixmap(":/resource/icons/smile.png").scaled(15, 15, Qt::KeepAspectRatio, Qt::SmoothTransformation));
 
     m_tipLabel = new QLabel;
     m_tipLabel->setObjectName("funnyTipLabel");

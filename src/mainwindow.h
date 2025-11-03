@@ -1,6 +1,7 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
+#include "settingsdialog.h"
 #include <QMainWindow>
 #include <QDate>
 #include <QPushButton>
@@ -43,6 +44,10 @@ private slots: // <-- Thêm private slots
     void toggleTipsPanel();
     void toggleSupportPanel();
     void toggleFeedbackPanel();
+
+    void openSettingsDialog();
+    void changeBackgroundImage(int index, const QString &imagePath);
+    void setCalendarTransparency(bool transparent);
 
 private:
     Ui::MainWindow *ui;

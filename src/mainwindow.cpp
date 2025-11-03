@@ -6,6 +6,7 @@
 #include "eventdialog.h"
 #include "sidepanel.h"
 #include "funnytipwidget.h"
+#include "settingsdialog.h"
 
 #include <QTabBar>
 #include <QStackedWidget>
@@ -36,6 +37,10 @@
 #include <QRadioButton>
 #include <QTextEdit>
 #include <QMessageBox>
+#include <QGraphicsBlurEffect>
+#include <QRegularExpression>
+#include <QListWidget>
+#include <QLineEdit>
 
 void MainWindow::resizeEvent(QResizeEvent *event)
 {
@@ -95,7 +100,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     // === Nút 3 gạch (hamburger) ===
     m_btnSidebarToggle = new QToolButton(this);
-    m_btnSidebarToggle->setIcon(QIcon("resource/icons/menu.png"));
+    m_btnSidebarToggle->setIcon(QIcon(":/resource/icons/menu.png"));
     m_btnSidebarToggle->setToolTip("Mở/Đóng Lịch nhỏ");
     m_btnSidebarToggle->setCursor(Qt::PointingHandCursor);
     m_btnSidebarToggle->setFixedSize(50, 50);
@@ -117,7 +122,7 @@ MainWindow::MainWindow(QWidget *parent)
     // --- Nút "Bộ lọc" có menu thả --- //
     QToolButton *btnFilter = new QToolButton;
     btnFilter->setText("  Bộ lọc   ▼");
-    btnFilter->setIcon(QIcon("resource/icons/filter.png"));
+    btnFilter->setIcon(QIcon(":/resource/icons/filter.png"));
     btnFilter->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     btnFilter->setCursor(Qt::PointingHandCursor);
     btnFilter->setPopupMode(QToolButton::InstantPopup);
@@ -186,12 +191,12 @@ MainWindow::MainWindow(QWidget *parent)
     };
 
     QList<Category> categories = {
-        {"Red category",    "resource/icons/red_tag.png"},
-        {"Orange category", "resource/icons/orange_tag.png"},
-        {"Yellow category", "resource/icons/yellow_tag.png"},
-        {"Green category",  "resource/icons/green_tag.png"},
-        {"Blue category",   "resource/icons/blue_tag.png"},
-        {"Purple category", "resource/icons/purple_tag.png"}
+        {"Red category",    ":/resource/icons/red_tag.png"},
+        {"Orange category", ":/resource/icons/orange_tag.png"},
+        {"Yellow category", ":/resource/icons/yellow_tag.png"},
+        {"Green category",  ":/resource/icons/green_tag.png"},
+        {"Blue category",   ":/resource/icons/blue_tag.png"},
+        {"Purple category", ":/resource/icons/purple_tag.png"}
     };
 
     menuCategory->setObjectName("menuCategory");
@@ -274,7 +279,7 @@ MainWindow::MainWindow(QWidget *parent)
     auto makeFilterButton = [&](QWidget *parent = nullptr) {
         QToolButton *b = new QToolButton(parent);
         b->setText("  Bộ lọc  ▼");
-        b->setIcon(QIcon("resource/icons/filter.png"));
+        b->setIcon(QIcon(":/resource/icons/filter.png"));
         b->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
         b->setCursor(Qt::PointingHandCursor);
         b->setPopupMode(QToolButton::InstantPopup);
@@ -311,7 +316,7 @@ MainWindow::MainWindow(QWidget *parent)
     // --- Nút chính "Sự kiện mới" ---
     QToolButton *btnNewEvent = new QToolButton;
     btnNewEvent->setText("  Sự kiện mới");
-    btnNewEvent->setIcon(QIcon("resource/icons/calendar.png"));
+    btnNewEvent->setIcon(QIcon(":/resource/icons/calendar.png"));
     btnNewEvent->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     btnNewEvent->setCursor(Qt::PointingHandCursor);
     // THAY ĐỔI: Chuyển từ MenuButtonPopup sang chế độ nút bấm thường
@@ -320,8 +325,8 @@ MainWindow::MainWindow(QWidget *parent)
 
     // Menu thả xuống
     QMenu *newEventMenu = new QMenu(btnNewEvent);
-    QAction *actNewMail = newEventMenu->addAction(QIcon("resource/icons/message.png"), "Thư");
-    QAction *actNewEvent = newEventMenu->addAction(QIcon("resource/icons/calendarEvent.png"), "Sự kiện");
+    QAction *actNewMail = newEventMenu->addAction(QIcon(":/resource/icons/message.png"), "Thư");
+    QAction *actNewEvent = newEventMenu->addAction(QIcon(":/resource/icons/calendarEvent.png"), "Sự kiện");
     newEventMenu->setObjectName("eventMenu");
     btnNewEvent->setMenu(newEventMenu);
     addShadowEffect(newEventMenu);
@@ -331,7 +336,7 @@ MainWindow::MainWindow(QWidget *parent)
     // --- Nút "Ngày" có menu thả ---
     QToolButton *btnDay = new QToolButton;
     btnDay->setText("  Ngày");
-    btnDay->setIcon(QIcon("resource/icons/7days.png"));
+    btnDay->setIcon(QIcon(":/resource/icons/7days.png"));
     btnDay->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     btnDay->setCursor(Qt::PointingHandCursor);
     btnDay->setPopupMode(QToolButton::MenuButtonPopup);
@@ -352,10 +357,10 @@ MainWindow::MainWindow(QWidget *parent)
 
     homeLayout->addWidget(btnDay);
 
-    homeLayout->addWidget(makeBtn("Tuần làm việc", "resource/icons/workWeek.png"));
-    homeLayout->addWidget(makeBtn("Tuần", "resource/icons/week.png"));
-    homeLayout->addWidget(makeBtn("Tháng", "resource/icons/month.png"));
-    homeLayout->addWidget(makeBtn("Dạng xem tách", "resource/icons/split.png"));
+    homeLayout->addWidget(makeBtn("Tuần làm việc", ":/resource/icons/workWeek.png"));
+    homeLayout->addWidget(makeBtn("Tuần", ":/resource/icons/week.png"));
+    homeLayout->addWidget(makeBtn("Tháng", ":/resource/icons/month.png"));
+    homeLayout->addWidget(makeBtn("Dạng xem tách", ":/resource/icons/split.png"));
 
     //Gạch dọc chia
     homeLayout->addWidget(makeSeparator());
@@ -365,7 +370,7 @@ MainWindow::MainWindow(QWidget *parent)
     //Gạch dọc chia
     homeLayout->addWidget(makeSeparator());
 
-    homeLayout->addWidget(makeBtn("In", "resource/icons/printer.png"));
+    homeLayout->addWidget(makeBtn("In", ":/resource/icons/printer.png"));
     homeLayout->addStretch();
 
     m_toolbarStack->addWidget(homePage);
@@ -379,7 +384,7 @@ MainWindow::MainWindow(QWidget *parent)
     // --- Nút "Ngày" ---
     QToolButton *btnDayView = new QToolButton;
     btnDayView->setText("  Ngày");
-    btnDayView->setIcon(QIcon("resource/icons/7days.png"));
+    btnDayView->setIcon(QIcon(":/resource/icons/7days.png"));
     btnDayView->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     btnDayView->setCursor(Qt::PointingHandCursor);
     btnDayView->setPopupMode(QToolButton::MenuButtonPopup);
@@ -389,15 +394,15 @@ MainWindow::MainWindow(QWidget *parent)
     viewLayout->addWidget(btnDayView);
 
     // --- Các nút còn lại ---
-    viewLayout->addWidget(makeBtn("Tuần làm việc", "resource/icons/workWeek.png"));
-    viewLayout->addWidget(makeBtn("Tuần", "resource/icons/week.png"));
-    viewLayout->addWidget(makeBtn("Tháng", "resource/icons/month.png"));
-    viewLayout->addWidget(makeBtn("Lưu dạng xem", "resource/icons/save.png"));
+    viewLayout->addWidget(makeBtn("Tuần làm việc", ":/resource/icons/workWeek.png"));
+    viewLayout->addWidget(makeBtn("Tuần", ":/resource/icons/week.png"));
+    viewLayout->addWidget(makeBtn("Tháng", ":/resource/icons/month.png"));
+    viewLayout->addWidget(makeBtn("Lưu dạng xem", ":/resource/icons/save.png"));
 
     // --- Nút "Tỉ lệ thời gian" ---
     QToolButton *btnTimeScale = new QToolButton;
     btnTimeScale->setText("  Tỉ lệ thời gian  ▼"); // <-- THAY ĐỔI 1: Thêm mũi tên
-    btnTimeScale->setIcon(QIcon("resource/icons/timeScale.png"));
+    btnTimeScale->setIcon(QIcon(":/resource/icons/timeScale.png"));
     btnTimeScale->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     btnTimeScale->setCursor(Qt::PointingHandCursor);
     btnTimeScale->setPopupMode(QToolButton::InstantPopup); // <-- THAY ĐỔI 2: Chế độ popup
@@ -430,7 +435,9 @@ MainWindow::MainWindow(QWidget *parent)
 
     viewLayout->addWidget(makeSeparator());
 
-    viewLayout->addWidget(makeBtn("Cài đặt", "resource/icons/setting.png"));
+    QToolButton *btnSettings = makeBtn("Cài đặt", ":/resource/icons/setting.png");
+    connect(btnSettings, &QToolButton::clicked, this, &MainWindow::openSettingsDialog);
+    viewLayout->addWidget(btnSettings);
 
     viewLayout->addStretch();
 
@@ -442,24 +449,24 @@ MainWindow::MainWindow(QWidget *parent)
     helpLayout->setContentsMargins(10, 6, 10, 6);
     helpLayout->setSpacing(10);
 
-    QToolButton *btnShowHelp = makeBtn("Trợ giúp", "resource/icons/question.png");
+    QToolButton *btnShowHelp = makeBtn("Trợ giúp", ":/resource/icons/question.png");
     connect(btnShowHelp, &QToolButton::clicked, this, &MainWindow::toggleHelpPanel);
     helpLayout->addWidget(btnShowHelp);
 
-    QToolButton *btnTips = makeBtn("Mẹo", "resource/icons/lightbulb.png");
+    QToolButton *btnTips = makeBtn("Mẹo", ":/resource/icons/lightbulb.png");
     connect(btnTips, &QToolButton::clicked, this, &MainWindow::toggleTipsPanel);
     helpLayout->addWidget(btnTips);
 
-    QToolButton *btnSupport = makeBtn("Hỗ trợ", "resource/icons/support.png");
+    QToolButton *btnSupport = makeBtn("Hỗ trợ", ":/resource/icons/support.png");
     connect(btnSupport, &QToolButton::clicked, this, &MainWindow::toggleSupportPanel); // <-- THÊM DÒNG NÀY
     helpLayout->addWidget(btnSupport);
 
-    QToolButton *btnFeedback = makeBtn("Phản hồi", "resource/icons/feedback.png");
+    QToolButton *btnFeedback = makeBtn("Phản hồi", ":/resource/icons/feedback.png");
     connect(btnFeedback, &QToolButton::clicked, this, &MainWindow::toggleFeedbackPanel); // <-- THÊM DÒNG NÀY
     helpLayout->addWidget(btnFeedback);
 
     helpLayout->addWidget(makeSeparator());
-    QToolButton *btnGithub = makeBtn("Đi tới Github", "resource/icons/github.png");
+    QToolButton *btnGithub = makeBtn("Đi tới Github", ":/resource/icons/github.png");
     connect(btnGithub, &QToolButton::clicked, this, []() {
         QDesktopServices::openUrl(QUrl("https://github.com/dada-DSA-OOP/Calendar_PROJECT"));
     });
@@ -676,6 +683,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     // Thanh điều hướng và layout của nó
     QWidget *dateNavBar = new QWidget;
+    dateNavBar->setObjectName("dateNavBar");
     QHBoxLayout *dateNavLayout = new QHBoxLayout(dateNavBar);
     dateNavLayout->setContentsMargins(10, 5, 10, 5);
     dateNavLayout->setSpacing(8);
@@ -726,8 +734,8 @@ MainWindow::MainWindow(QWidget *parent)
 
     // === Sidebar lịch nhỏ ===
     m_sidebarCalendar = new QWidget(this);
+    m_sidebarCalendar->setObjectName("sidebarCalendar");
     m_sidebarCalendar->setFixedWidth(0);  // ban đầu ẩn
-    m_sidebarCalendar->setStyleSheet("background-color: white; border-right: 1px solid #ddd;");
 
     QVBoxLayout *sidebarLayout = new QVBoxLayout(m_sidebarCalendar);
     sidebarLayout->setContentsMargins(10, 10, 10, 10);
@@ -737,7 +745,129 @@ MainWindow::MainWindow(QWidget *parent)
     miniCalendar->setLocale(QLocale(QLocale::Vietnamese));
     miniCalendar->setFirstDayOfWeek(Qt::Monday);
     sidebarLayout->addWidget(miniCalendar);
-    sidebarLayout->addStretch();
+    // === PHẦN GHI CHÚ DƯỚI LỊCH NHỎ ===
+    QLabel *noteTitle = new QLabel("📝 Ghi chú");
+    noteTitle->setStyleSheet("font-weight: bold; margin-top:10px;");
+
+    // Ô nhập + nút thêm
+    QTextEdit *noteInput = new QTextEdit;
+    noteInput->setPlaceholderText("Thêm việc cần làm...");
+    noteInput->setObjectName("noteInput");
+    noteInput->setMaximumHeight(65); // Giới hạn chiều cao, ví dụ: tương đương 3 dòng
+
+    QPushButton *btnAddNote = new QPushButton("+");
+    btnAddNote->setObjectName("btnAddNote"); // <-- THÊM TÊN OBJECT
+    btnAddNote->setCursor(Qt::PointingHandCursor);
+    btnAddNote->setToolTip("Thêm công việc");
+
+    QHBoxLayout *addLayout = new QHBoxLayout;
+    addLayout->setContentsMargins(0,0,0,0);
+    addLayout->setSpacing(5);
+    addLayout->addWidget(noteInput);
+    addLayout->addWidget(btnAddNote);
+
+    // Danh sách công việc
+    QListWidget *todoList = new QListWidget;
+    todoList->setObjectName("todoList"); // <-- THÊM TÊN OBJECT
+    todoList->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+
+    todoList->verticalScrollBar()->setStyleSheet(
+        "QScrollBar::sub-line:vertical {"
+        "    border: none;"
+        "    background: none;"
+        "    height: 0px;"
+        "}"
+        "QScrollBar::add-line:vertical {"
+        "    border: none;"
+        "    background: none;"
+        "    height: 0px;"
+        "}"
+    );
+
+    noteInput->verticalScrollBar()->setStyleSheet(
+        "QScrollBar::sub-line:vertical {"
+        "    border: none;"
+        "    background: none;"
+        "    height: 0px;"
+        "}"
+        "QScrollBar::add-line:vertical {"
+        "    border: none;"
+        "    background: none;"
+        "    height: 0px;"
+        "}"
+        );
+    // XÓA HẾT STYLESHEET Ở ĐÂY
+
+    // XÓA DÒNG sidebarLayout->addWidget(miniCalendar); BỊ LẶP
+    sidebarLayout->addWidget(noteTitle);
+    sidebarLayout->addLayout(addLayout);
+    sidebarLayout->addWidget(todoList, 1);
+
+    // ===== HÀM THÊM CÔNG VIỆC (ĐÃ TỐI ƯU HÓA) =====
+    auto addTodoItem = [=]() {
+        QString text = noteInput->toPlainText().trimmed();
+        if (text.isEmpty()) return;
+
+        QListWidgetItem *item = new QListWidgetItem(todoList);
+        QWidget *itemWidget = new QWidget;
+
+        // Giảm lề và khoảng cách một chút để có thêm không gian
+        QHBoxLayout *itemLayout = new QHBoxLayout(itemWidget);
+        itemLayout->setContentsMargins(8, 4, 4, 4); // Lề trái, trên, phải, dưới
+        itemLayout->setSpacing(6);
+
+        // --- CÁC WIDGET CON ---
+        QCheckBox *check = new QCheckBox;
+        QLabel *todoLabel = new QLabel(text);
+        todoLabel->setWordWrap(true);
+
+        // **SỬA LỖI 1: BÁO CHO LAYOUT BIẾT LABEL CÓ THỂ BỊ CO LẠI TỐI ĐA**
+        todoLabel->setMinimumWidth(0);
+        todoLabel->setMaximumWidth(100);
+
+        // **SỬA LỖI 2: ĐẶT CHÍNH SÁCH KÍCH THƯỚC ĐỂ NÚT XÓA KHÔNG BỊ CO LẠI**
+        QPushButton *btnDel = new QPushButton("×");
+        btnDel->setObjectName("btnDeleteTodo");
+        btnDel->setCursor(Qt::PointingHandCursor);
+        btnDel->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed); // Nút luôn có kích thước cố định
+
+        // --- THÊM WIDGET VÀO LAYOUT ---
+        itemLayout->addWidget(check);
+        itemLayout->addWidget(todoLabel, 1); // Tham số 1 để label lấp đầy không gian
+        itemLayout->addWidget(btnDel);
+        itemWidget->setLayout(itemLayout);
+
+        // --- GÁN VÀO LIST ---
+        item->setSizeHint(itemWidget->sizeHint());
+        todoList->addItem(item);
+        todoList->setItemWidget(item, itemWidget);
+        noteInput->clear();
+
+        // --- KẾT NỐI TÍN HIỆU (connect) ---
+        // (Toàn bộ phần connect giữ nguyên như cũ, không cần thay đổi)
+        connect(check, &QCheckBox::checkStateChanged, [=](Qt::CheckState state){
+            bool completed = (state == Qt::Checked);
+            if (completed) {
+                todoLabel->setText(QString("<p style='white-space: normal; word-break: break-all; text-align: justify;'>%1</p>").arg(text.toHtmlEscaped()));
+                todoLabel->setStyleSheet("color: #999; text-decoration: line-through;");
+                check->setStyleSheet("QCheckBox::indicator:checked { image: url(:/resource/icons/check-green.png); }");
+                itemWidget->setStyleSheet("background-color: #f0f0f0;");
+            } else {
+                todoLabel->setText(QString("<p style='white-space: normal; word-break: break-all; text-align: justify;'>%1</p>").arg(text.toHtmlEscaped()));
+                todoLabel->setStyleSheet("");
+                check->setStyleSheet("");
+                itemWidget->setStyleSheet("");
+            }
+        });
+
+        connect(btnDel, &QPushButton::clicked, [=]() {
+            int row = todoList->row(item);
+            delete todoList->takeItem(row);
+        });
+    };
+
+    // --- Thêm bằng nút hoặc phím Enter ---
+    connect(btnAddNote, &QPushButton::clicked, this, addTodoItem);
 
     // THÊM DÒNG KẾT NỐI NÀY
     connect(miniCalendar, &QCalendarWidget::clicked, this, &MainWindow::onDateSelectedFromPopup);
@@ -747,7 +877,9 @@ MainWindow::MainWindow(QWidget *parent)
 
     // Các thành phần của lịch
     m_dayHeader = new DayHeader;
+    m_dayHeader->setObjectName("dayHeaderWidget");
     TimeRuler *ruler = new TimeRuler;
+    ruler->setObjectName("timeRulerWidget");
     m_calendarView = new CalendarView;
     m_calendarView->setObjectName("mainCalendarView");
 
@@ -813,16 +945,16 @@ MainWindow::MainWindow(QWidget *parent)
     // -- BƯỚC 4: THÊM DỮ LIỆU MẪU VÀ CẬP NHẬT GIAO DIỆN LẦN ĐẦU --
 
     QDate monday = QDate::currentDate().addDays(-(QDate::currentDate().dayOfWeek() - 1));
-    m_calendarView->addEvent("Toán rời rạc", QColor("#8cbb63"), QDateTime(monday, QTime(7, 0)), QDateTime(monday, QTime(11, 30)));
+    m_calendarView->addEvent("Toán rời rạc", QColor("#a7d7f9"), QDateTime(monday, QTime(7, 0)), QDateTime(monday, QTime(11, 30)));
     QDate tuesday = monday.addDays(1);
-    m_calendarView->addEvent("Lập trình hướng đối tượng", QColor("#8cbb63"), QDateTime(tuesday, QTime(13, 0)), QDateTime(tuesday, QTime(17, 30)));
-    m_calendarView->addEvent("Bơi", QColor("#8cbb63"), QDateTime(tuesday, QTime(7, 0)), QDateTime(tuesday, QTime(9, 0)));
+    m_calendarView->addEvent("Lập trình hướng đối tượng", QColor("#a7d7f9"), QDateTime(tuesday, QTime(13, 0)), QDateTime(tuesday, QTime(17, 30)));
+    m_calendarView->addEvent("Bơi", QColor("#a7d7f9"), QDateTime(tuesday, QTime(7, 0)), QDateTime(tuesday, QTime(9, 0)));
     QDate wednesday = monday.addDays(2);
-    m_calendarView->addEvent("Kiến trúc và tổ chức máy tính", QColor("#8cbb63"), QDateTime(wednesday, QTime(13, 0)), QDateTime(wednesday, QTime(17, 30)));
+    m_calendarView->addEvent("Kiến trúc và tổ chức máy tính", QColor("#a7d7f9"), QDateTime(wednesday, QTime(13, 0)), QDateTime(wednesday, QTime(17, 30)));
     QDate thurday = monday.addDays(3);
-    m_calendarView->addEvent("Thiết kế web", QColor("#8cbb63"), QDateTime(thurday, QTime(7, 0)), QDateTime(thurday, QTime(11, 30)));
+    m_calendarView->addEvent("Thiết kế web", QColor("#a7d7f9"), QDateTime(thurday, QTime(7, 0)), QDateTime(thurday, QTime(11, 30)));
     QDate saturday = monday.addDays(5);
-    m_calendarView->addEvent("Cấu trúc dữ liệu và giải thuật", QColor("#8cbb63"), QDateTime(saturday, QTime(7, 0)), QDateTime(saturday, QTime(11, 30)));
+    m_calendarView->addEvent("Cấu trúc dữ liệu và giải thuật", QColor("#a7d7f9"), QDateTime(saturday, QTime(7, 0)), QDateTime(saturday, QTime(11, 30)));
     QDate nextTuesday = tuesday.addDays(7);
     m_calendarView->addEvent("Sự kiện tuần sau", Qt::red, QDateTime(nextTuesday, QTime(11, 0)), QDateTime(nextTuesday, QTime(12, 30)));
 
@@ -855,6 +987,9 @@ MainWindow::MainWindow(QWidget *parent)
 
         m_sidebarVisible = !m_sidebarVisible;
     });
+
+    // Đặt độ trong suốt mặc định cho lịch
+    setCalendarTransparency(true);
 }
 
 MainWindow::~MainWindow()
@@ -976,4 +1111,65 @@ void MainWindow::toggleFeedbackPanel()
     m_tipsPanel->hidePanel(this->geometry(), m_topBar->height());
     m_supportPanel->hidePanel(this->geometry(), m_topBar->height());
     m_feedbackPanel->toggleVisibility(this->geometry(), m_topBar->height());
+}
+
+void MainWindow::openSettingsDialog()
+{
+    SettingsDialog dialog(this);
+    if (dialog.exec() == QDialog::Accepted) {
+        changeBackgroundImage(dialog.selectedBackgroundIndex(), dialog.selectedImagePath());
+        setCalendarTransparency(dialog.isCalendarTransparent()); // <-- THÊM DÒNG NÀY
+    }
+}
+
+void MainWindow::changeBackgroundImage(int index, const QString &imagePath)
+{
+    QString style = qApp->styleSheet();
+    style.remove(QRegularExpression("QMainWindow \\{[^\\}]*background-image[^\\}]*\\}"));
+
+    QString newRule;
+    switch (index) {
+    case 0: // Nền mặc định 1
+        newRule = "QMainWindow { background-image: url(:/resource/images/background.jpg); background-position: center; }";
+        break;
+    case 1: // Nền mặc định 1
+        newRule = "QMainWindow { background-image: url(:/resource/images/background1.jpg); background-position: center; }";
+        break;
+    case 2: // Nền mặc định 2
+        newRule = "QMainWindow { background-image: url(:/resource/images/background2.jpg); background-position: center; }";
+        break;
+    case 3: // Nền mặc định 3
+        newRule = "QMainWindow { background-image: url(:/resource/images/background3.jpg); background-position: center; }";
+        break;
+    case 4: // Tùy chỉnh
+        if (!imagePath.isEmpty()) {
+            QString formattedPath = imagePath;
+            formattedPath.replace("\\", "/");
+            newRule = QString("QMainWindow { background-image: url('%1'); background-position: center; }").arg(formattedPath);
+        }
+        break;
+    default:
+        // Mặc định quay về nền đầu tiên
+        newRule = "QMainWindow { background-image: url(:/resource/images/background.jpg); background-position: center; }";
+        break;
+    }
+
+    if (!newRule.isEmpty()) {
+        style += "\n" + newRule;
+    }
+
+    qApp->setStyleSheet(style);
+}
+
+// THÊM HÀM MỚI NÀY VÀO CUỐI FILE
+void MainWindow::setCalendarTransparency(bool transparent)
+{
+    if (transparent) {
+        m_calendarView->setProperty("transparent", true);
+    } else {
+        m_calendarView->setProperty("transparent", false);
+    }
+    // Yêu cầu Qt làm mới lại style của widget
+    style()->unpolish(m_calendarView);
+    style()->polish(m_calendarView);
 }

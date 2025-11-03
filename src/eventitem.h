@@ -46,6 +46,9 @@ private:
     QDateTime m_startTime;
     QDateTime m_endTime;
     bool m_isResizing;
+    QGraphicsRectItem *m_ghostItem; // Vật phẩm mờ khi kéo
+    QPointF m_dragStartOffset;      // Vị trí nhấn chuột so với góc item
+    void updateGhostPosition(QPointF newScenePos);
 };
 
 #endif // EVENTITEM_H

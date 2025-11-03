@@ -2,6 +2,7 @@
 #include <QPainter>
 #include <QDateTime>
 #include <QTextDocument>
+#include <QStyleOption>
 
 DayHeader::DayHeader(QWidget *parent)
     : QWidget(parent), m_scrollOffset(0), m_dayWidth(100.0), m_days(7)
@@ -26,7 +27,12 @@ void DayHeader::setScrollOffset(int x)
 void DayHeader::paintEvent(QPaintEvent *event)
 {
     Q_UNUSED(event);
+
+    // Đoạn code này yêu cầu widget vẽ nền theo stylesheet trước
+    QStyleOption opt;
+    opt.initFrom(this);
     QPainter painter(this);
+    style()->drawPrimitive(QStyle::PE_Widget, &opt, &painter, this);
     painter.setRenderHint(QPainter::Antialiasing);
 
     // THAY ĐỔI: Bỏ Bold ở đây, vì HTML sẽ xử lý việc in đậm

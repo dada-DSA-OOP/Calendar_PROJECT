@@ -1,7 +1,5 @@
 /* =====================================================
    STYLE TỔNG CHO ỨNG DỤNG QT WIDGETS
-   (Đã gom và loại bỏ trùng lặp)
-===================================================== */
 
 /* -------------------------------
    THANH MENU CHÍNH (MenuBar)
@@ -48,7 +46,7 @@ QMenu::indicator {
     background-color: white;
 }
 QMenu::indicator:checked {
-    image: url(resource/icons/tick.png);
+    image: url(:/resource/icons/tick.png);
     background-color: #0078d7;
     margin-left: 10px;
 }
@@ -82,7 +80,7 @@ QPushButton:pressed {
 -------------------------------- */
 #btnNewEvent {
     background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                                      stop:0 #0078d7, stop:1 #005a9e);
+                                      stop:0 #23b9de, stop:1 #589ce8);
     color: white;
     font-weight: bold;
     border: 1px solid #005a9e;
@@ -224,11 +222,27 @@ QTabBar::tab:selected {
 /* -------------------------------
    TOOLBAR
 -------------------------------- */
+/* (Bao gồm top bar và date navigation bar) */
+#topBar, #dateNavBar {
+    background-color: rgba(245, 245, 245, 0.75); /* Nền trắng mờ 75% */
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
 QToolBar {
-    background: #fcfcfc;
-    border-bottom: 1px solid #e0e0e0;
-    padding: 4px 8px;
-    spacing: 6px;
+    background: transparent;
+    border: none;
+}
+QTabBar {
+    background: transparent;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+QTabBar::tab:selected {
+    background: transparent;
+    color: #005a9e;
+    font-weight: 600;
+    border-bottom: 3px solid #005a9e;
+}
+QTabBar::tab:hover {
+    background-color: rgba(0, 0, 0, 0.05);
 }
 
 /* -------------------------------
@@ -514,7 +528,7 @@ EventDialog QComboBox {
 
 EventDialog QDateEdit::down-arrow,
 EventDialog QComboBox::down-arrow {
-    image: url(resource/icons/down-arrow.png);
+    image: url(:/resource/icons/down-arrow.png);
     width: 12px;
     height: 12px;
 }
@@ -581,14 +595,14 @@ QPushButton#cancelButton:pressed {
    STYLE CHUNG CHO CÁC SIDE PANELS
 ===================================================== */
 
-#sidePanel { /* ID chung cho cả hai panel */
-    background-color: #f8f9fa;
-    border-left: 1px solid #dee2e6;
+/* --- CÁC PANEL BÊN PHẢI --- */
+#sidePanel {
+    background-color: rgba(248, 249, 250, 0.88); /* Nền xám nhạt mờ 88% */
+    border-left: 1px solid rgba(0, 0, 0, 0.1);
 }
-
 #sidePanelTitleBar {
     background-color: white;
-    border-bottom: 1px solid #e9ecef;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
 }
 
 #sidePanelTitle {
@@ -671,4 +685,142 @@ QPushButton#cancelButton:pressed {
 
 #submitButton:pressed {
     background-color: #004578;
+}
+
+/* --- SIDEBAR BÊN TRÁI --- */
+#sidebarCalendar {
+    background-color: rgba(252, 252, 252, 0.85); /* Nền trắng mờ 85% */
+    border-right: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+/* --- LỊCH CHÍNH (VIEWPORT) --- */
+/* Làm cho nền của lịch chính trong suốt để thấy ảnh nền */
+#mainCalendarView {
+    background: transparent;
+    border: none;
+}
+
+/* =====================================================
+   STYLE NỀN XÁM CHO LỊCH
+===================================================== */
+
+/* Nền xám cho thanh thứ ngày, cột giờ, và góc trên bên trái */
+#dayHeaderWidget, #timeRulerWidget, #calendarCornerWidget {
+    background-color: #f5f5f5; /* Màu xám nhạt của Outlook */
+    border: none; /* Bỏ các đường viền mặc định không cần thiết */
+}
+
+/* Nền xám cho thanh trạng thái ở dưới cùng */
+QStatusBar#statusbar {
+    background-color: #f5f5f5;
+    border-top: 1px solid #e1e1e1; /* Thêm đường kẻ phân cách tinh tế */
+}
+
+/* Nền mặc định cho lịch chính (màu xám đục) */
+#mainCalendarView {
+    background-color: #f5f5f5; /* Màu xám nhạt của Outlook */
+    border: none;
+}
+
+/* Khi lịch có thuộc tính "transparent" là true, làm nó bán trong suốt */
+#mainCalendarView[transparent="true"] {
+    /* Nền trắng bán trong suốt (85%), giống hiệu ứng Mica/Acrylic */
+    background-color: rgba(252, 252, 252, 0.85);
+}
+
+/* =====================================================
+   PHẦN TO-DO LIST (BÊN TRÁI)
+===================================================== */
+
+/* --- Ô nhập liệu --- */
+#noteInput {
+    border: none;
+    border-bottom: 1px solid #ccc;
+    background: transparent;
+    padding: 6px 2px;
+    border-radius: 0;
+    font-size: 10pt;
+}
+#noteInput:focus {
+    border-bottom: 2px solid #0078d7;
+}
+
+/* --- Nút thêm "+" --- */
+#btnAddNote {
+    background-color: #0078d7;
+    color: white;
+    font-size: 16pt;
+    font-weight: bold;
+    border: none;
+    border-radius: 12px; /* Bo tròn */
+    min-width: 15px;
+    max-width: 15px;
+    min-height: 15px;
+    max-height: 15px;
+    padding-bottom: 10px;
+}
+#btnAddNote:hover {
+    background-color: #0094ff;
+}
+#btnAddNote:pressed {
+    background-color: #005fa3;
+}
+
+
+/* --- Danh sách công việc --- */
+#todoList {
+    background: transparent;
+    border: none;
+}
+#todoList::item {
+    background-color: #f7f7f7;
+    border-bottom: 1px solid #e0e0e0;
+}
+#todoList::item:hover {
+    background-color: #e6f2ff;
+}
+
+/* --- Checkbox trong danh sách --- */
+#todoList QCheckBox {
+    font-size: 10pt;
+    color: #333;
+}
+#todoList QCheckBox::indicator {
+    width: 16px;
+    height: 16px;
+    border-radius: 8px; /* Bo tròn indicator */
+    border: 1px solid #999;
+}
+#todoList QCheckBox::indicator:hover {
+    border: 1px solid #0078d7;
+}
+
+/* --- Nút xóa "x" trong danh sách --- */
+#btnDeleteTodo {
+    font-family: "Arial", sans-serif;
+    font-size: 16pt;
+    font-weight: normal;
+    background: transparent;
+    color: #aaa;
+    border: none;
+    border-radius: 11px;
+    min-width: 15px;
+    max-width: 15px;
+    min-height: 15px;
+    max-height: 15px;
+    opacity: 0.5;
+}
+#btnDeleteTodo:hover {
+    background-color: #ffdddd;
+    color: #d32f2f;
+    opacity: 1;
+}
+
+/* --- Style cho công việc ĐÃ HOÀN THÀNH (dựa vào dynamic property) --- */
+#todoItemContainer[completed="true"] {
+    background-color: #f0f0f0; /* Nền chuyển sang màu xám rất nhạt */
+}
+
+#todoItemContainer[completed="true"] QCheckBox {
+    color: #999; /* Chữ chuyển sang màu xám, tạo cảm giác mờ đi */
 }

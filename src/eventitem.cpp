@@ -14,7 +14,8 @@ EventItem::EventItem(const QString &title, const QColor &color,
     QGraphicsRectItem(parent),
     m_title(title), m_color(color),
     m_startTime(startTime), m_endTime(endTime),
-    m_isResizing(false)
+    m_isResizing(false),
+    m_ghostItem(nullptr)
 {
     setBrush(m_color);
     setPen(Qt::NoPen);
@@ -64,8 +65,16 @@ void EventItem::paint(QPainter *painter, const QStyleOptionGraphicsItem *option,
     painter->setPen(QPen(m_color.darker(120))); // Viền đậm hơn một chút
     painter->drawRoundedRect(rect(), 5, 5);
 
+    // --- THAY ĐỔI: ĐỊNH NGHĨA VÙNG RESIZE ---
+    // Giữ nguyên 5px như logic chuột của bạn
+    const int resizeHandleHeight = 5;
+
+    // --- THAY ĐỔI: VÙNG VẼ TEXT GIỜ SẼ TRỪ ĐI VÙNG RESIZE ---
+    // Chúng ta trừ đi 5px của tay cầm và 5px padding đáy
+    QRectF textRect = rect().adjusted(5, 5, -5, -resizeHandleHeight - 5);
+
     // Vẽ tiêu đề sự kiện
-    painter->setPen(Qt::white);
+    painter->setPen(Qt::black);
     QFont font = painter->font();
     font.setPixelSize(12);
     painter->setFont(font);
@@ -75,14 +84,31 @@ void EventItem::paint(QPainter *painter, const QStyleOptionGraphicsItem *option,
     textOption.setAlignment(Qt::AlignTop | Qt::AlignLeft);
     textOption.setWrapMode(QTextOption::WordWrap);
 
-    // Thêm một chút padding
-    QRectF textRect = rect().adjusted(5, 5, -5, -5);
     painter->drawText(textRect, m_title, textOption);
+
+    // --- THÊM MỚI: VẼ TAY NẮM RESIZE (PHẦN THIẾT KẾ DỄ NHẬN BIẾT) ---
+    if (rect().height() > 20) // Chỉ vẽ nếu item đủ cao
+    {
+        // Định nghĩa vùng tay cầm
+        QRectF handleRect(rect().left(), rect().bottom() - resizeHandleHeight, rect().width(), resizeHandleHeight);
+
+        // Vẽ 3 dấu chấm ở giữa
+        QPoint center = handleRect.center().toPoint();
+
+        // Lấy màu tối hơn từ màu nền
+        QPen dotPen(m_color.darker(150), 2, Qt::DotLine);
+        painter->setPen(dotPen);
+
+        int y = center.y(); // Căn y cho các dấu chấm
+        painter->drawPoint(center.x() - 4, y);
+        painter->drawPoint(center.x(), y);
+        painter->drawPoint(center.x() + 4, y);
+    }
 }
 
 QVariant EventItem::itemChange(GraphicsItemChange change, const QVariant &value)
 {
-    if (change == QGraphicsItem::ItemPositionChange && scene()) {
+    /*if (change == QGraphicsItem::ItemPositionChange && scene()) {
         auto *view = qobject_cast<CalendarView*>(scene()->views().first());
         if (!view) {
             return QGraphicsRectItem::itemChange(change, value);
@@ -98,7 +124,7 @@ QVariant EventItem::itemChange(GraphicsItemChange change, const QVariant &value)
 
         // Trả về vị trí với X tự do và Y đã bắt dính
         return QPointF(newPos.x(), snappedY);
-    }
+    }*/
 
     return QGraphicsRectItem::itemChange(change, value);
 }
@@ -110,46 +136,55 @@ void EventItem::mouseReleaseEvent(QGraphicsSceneMouseEvent *event)
     auto *view = qobject_cast<CalendarView*>(scene()->views().first());
     if (!view) return;
 
+    // --- THÊM MỚI: KHÔI PHỤC MÀU SẮC ---
+    // Khôi phục lại màu sắc cho item gốc, BẤT KỂ là resize hay move
+    this->setBrush(m_color);
+    this->setPen(Qt::NoPen); // (hoặc QPen(m_color.darker(120)) nếu bạn muốn)
+
     if (m_isResizing) {
+        // Logic resize release giữ nguyên
         m_isResizing = false;
         const double hourHeight = view->getHourHeight();
-
-        // Tính tổng số phút từ chiều cao mới
         int totalMinutes = qRound(rect().height() / hourHeight * 60.0);
-        // Cập nhật thời gian kết thúc
         m_endTime = m_startTime.addSecs(totalMinutes * 60);
 
-    } else {
-        QGraphicsRectItem::mouseReleaseEvent(event);
+    } else if (m_ghostItem) {
+        // Nếu đang di chuyển (thả ghost item)
+        // 1. Lấy vị trí cuối cùng (đã bắt dính) của ghost
+        QPointF finalPos = m_ghostItem->pos();
 
+        // 2. Xóa ghost item
+        scene()->removeItem(m_ghostItem);
+        delete m_ghostItem;
+        m_ghostItem = nullptr;
+
+        // 3. XÓA DÒNG NÀY (Không cần nữa):
+        // this->setVisible(true);
+
+        // 4. Chạy logic cập nhật thời gian
         const double dayWidth = view->getDayWidth();
+        // ... (phần code còn lại của bạn giữ nguyên) ...
         const double hourHeight = view->getHourHeight();
         if (dayWidth <= 0) return;
 
-        QPointF currentPos = pos();
-        // Tính toán chỉ số ngày mới (0-6)
-        int finalDayIndex = qRound((currentPos.x() - 5) / dayWidth);
+        int finalDayIndex = qRound((finalPos.x() - 5) / dayWidth);
         finalDayIndex = qBound(0, finalDayIndex, 6);
 
-        // Tính toán thời gian bắt đầu mới
         const double slotHeight = hourHeight / 4.0;
-        int timeSlot = qRound(currentPos.y() / slotHeight);
+        int timeSlot = qRound(finalPos.y() / slotHeight);
         int start_minute = timeSlot * 15;
         QTime newTime(start_minute / 60, start_minute % 60);
 
-        // Lấy ngày bắt đầu của tuần từ CalendarView
         QDate monday = view->getMondayOfCurrentWeek();
         QDate newDate = monday.addDays(finalDayIndex);
 
-        // Tính toán khoảng thời gian của sự kiện
         long long durationMs = m_startTime.msecsTo(m_endTime);
-
-        // Cập nhật lại thời gian bắt đầu và kết thúc
         m_startTime.setDate(newDate);
         m_startTime.setTime(newTime);
         m_endTime = m_startTime.addMSecs(durationMs);
     }
 
+    // Phát tín hiệu ở cuối cùng để CalendarView sắp xếp lại
     emit eventChanged(this);
 }
 
@@ -158,12 +193,17 @@ void EventItem::mouseReleaseEvent(QGraphicsSceneMouseEvent *event)
 void EventItem::hoverMoveEvent(QGraphicsSceneHoverEvent *event)
 {
     // Xác định một vùng nhỏ ở cạnh dưới làm "tay cầm" resize
+    // (Bạn đang dùng 5px, chúng ta giữ nguyên)
     QRectF handle = QRectF(rect().bottomLeft(), QPointF(rect().right(), rect().bottom() - 5));
+
     if (handle.contains(event->pos())) {
+        // 1. Nếu ở trên tay cầm -> Đổi trỏ chuột resize
         setCursor(Qt::SizeVerCursor);
     } else {
-        setCursor(Qt::ArrowCursor);
+        // 2. THAY ĐỔI: Nếu ở trên thân item -> Đổi trỏ chuột "bàn tay"
+        setCursor(Qt::PointingHandCursor);
     }
+
     QGraphicsRectItem::hoverMoveEvent(event);
 }
 
@@ -179,36 +219,89 @@ void EventItem::mousePressEvent(QGraphicsSceneMouseEvent *event)
     QRectF handle = QRectF(rect().bottomLeft(), QPointF(rect().right(), rect().bottom() - 5));
     if (handle.contains(event->pos())) {
         m_isResizing = true;
-    } else {
-        // Nếu không thì đây là thao tác di chuyển
+        // Cho phép base class xử lý resize (vì chúng ta không can thiệp)
         QGraphicsRectItem::mousePressEvent(event);
+    } else {
+        // Đây là thao tác di chuyển (Move)
+        m_isResizing = false;
+
+        // --- THAY ĐỔI QUAN TRỌNG ---
+        // 1. Ẩn item gốc BẰNG CÁCH LÀM NÓ TRONG SUỐT
+        //    Không dùng setVisible(false), vì nó sẽ làm item mất
+        //    khả năng nhận sự kiện move/release.
+        this->setBrush(Qt::transparent);
+        this->setPen(Qt::NoPen); // Đảm bảo viền cũng trong suốt
+
+        // 2. Lưu vị trí nhấn chuột (để kéo mượt)
+        m_dragStartOffset = event->pos();
+
+        // 3. Tạo ghost item
+        m_ghostItem = new QGraphicsRectItem(this->rect());
+        m_ghostItem->setBrush(QColor(100, 100, 100, 100)); // Màu xám mờ
+        m_ghostItem->setPen(QPen(Qt::black, 1, Qt::DashLine)); // Viền nét đứt
+        m_ghostItem->setZValue(this->zValue() + 1); // Đảm bảo nó nổi lên trên
+        scene()->addItem(m_ghostItem);
+
+        // 4. Đặt vị trí ban đầu cho ghost (đã bắt dính)
+        updateGhostPosition(this->pos());
+
+        event->accept(); // Chúng ta tự xử lý, không gọi base class
     }
 }
 
 void EventItem::mouseMoveEvent(QGraphicsSceneMouseEvent *event)
 {
     if (m_isResizing) {
+        // Logic resize giữ nguyên như cũ của bạn
         auto *view = qobject_cast<CalendarView*>(scene()->views().first());
         if (!view) return;
-
-        // Lấy chiều cao mới từ vị trí chuột
         double newHeight = event->pos().y();
-
-        // Bắt dính chiều cao vào các mốc 15 phút
         const double hourHeight = view->getHourHeight();
         const double slotHeight = hourHeight / 4.0;
         int timeSlots = qRound(newHeight / slotHeight);
         double snappedHeight = timeSlots * slotHeight;
-
-        // Giới hạn chiều cao tối thiểu là 15 phút
         if (snappedHeight < slotHeight) {
             snappedHeight = slotHeight;
         }
-
-        // Cập nhật lại hình chữ nhật của item
         setRect(0, 0, rect().width(), snappedHeight);
-    } else {
-        // Nếu không phải resize thì là di chuyển
-        QGraphicsRectItem::mouseMoveEvent(event);
+
+    } else if (m_ghostItem) {
+        // Nếu đang di chuyển (m_ghostItem tồn tại)
+        // 1. Tính vị trí mới trên scene (chưa bắt dính)
+        QPointF newScenePos = mapToScene(event->pos()) - m_dragStartOffset;
+
+        // 2. Yêu cầu ghost cập nhật vị trí (hàm này sẽ tự bắt dính)
+        updateGhostPosition(newScenePos);
+
+        event->accept();
     }
+}
+
+// Thêm hàm này vào cuối file eventitem.cpp
+
+/**
+ * @brief Tính toán và cập nhật vị trí "bắt dính" (snapped) cho ghost item.
+ * @param newScenePos Vị trí mới (chưa bắt dính) trên scene.
+ */
+void EventItem::updateGhostPosition(QPointF newScenePos)
+{
+    auto *view = qobject_cast<CalendarView*>(scene()->views().first());
+    if (!view || !m_ghostItem) return;
+
+    const double dayWidth = view->getDayWidth();
+    const double hourHeight = view->getHourHeight();
+    if (dayWidth <= 0) return;
+
+    // 1. Bắt dính Y (Thời gian)
+    const double slotHeight = hourHeight / 4.0; // 15 phút
+    int timeSlot = qRound(newScenePos.y() / slotHeight);
+    double snappedY = timeSlot * slotHeight;
+
+    // 2. Bắt dính X (Ngày)
+    int dayIndex = qRound((newScenePos.x() - 5) / dayWidth);
+    dayIndex = qBound(0, dayIndex, 6); // Giới hạn từ 0 (Thứ 2) đến 6 (Chủ Nhật)
+    double snappedX = (dayIndex * dayWidth + 5);
+
+    // 3. Cập nhật vị trí cho ghost item
+    m_ghostItem->setPos(snappedX, snappedY);
 }

@@ -1,5 +1,7 @@
 # Changelog
 
+- 1/11/2025 Hoàn thiện Event các dạng xem lịch. - lequocdat8272
+
 - 31/10/2025 Hoàn thiện sidebar với minicalendar và todolist. - Nguyễn Quốc Đạt
 
 - 15h10 18/10/2025 Hoàn thành Event Tab Help và thêm một số text vui. - Kiệt

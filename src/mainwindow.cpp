@@ -7,6 +7,12 @@
 #include "sidepanel.h"
 #include "funnytipwidget.h"
 #include "settingsdialog.h"
+#include "monthviewwidget.h"
+#include "daycellwidget.h"
+#include "eventitem.h"
+#include "timetableviewwidget.h"
+#include "timetableslotwidget.h"
+#include "sessionviewwidget.h"
 
 #include <QTabBar>
 #include <QStackedWidget>
@@ -86,7 +92,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     //Màn hình nhỏ nhất có thể co lại
     setMinimumWidth(700);
-    resize(1200, 800);     // rộng 1200px, cao 800px
+    resize(1250, 800);     // rộng 1200px, cao 800px
     setMaximumSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX); // cho phép phóng to tự do
 
     auto addShadowEffect = [](QWidget *widget) {
@@ -339,28 +345,51 @@ MainWindow::MainWindow(QWidget *parent)
     btnDay->setIcon(QIcon(":/resource/icons/7days.png"));
     btnDay->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     btnDay->setCursor(Qt::PointingHandCursor);
-    btnDay->setPopupMode(QToolButton::MenuButtonPopup);
+    btnDay->setPopupMode(QToolButton::InstantPopup);
     btnDay->setObjectName("btnDay");
 
     QMenu *dayMenu = new QMenu(btnDay);
     QAction *actOneDay = dayMenu->addAction("1 Ngày");
-    QAction *actTwoDay = dayMenu->addAction("2 Ngày");
     QAction *actThreeDay = dayMenu->addAction("3 Ngày");
-    QAction *actFourDay = dayMenu->addAction("4 Ngày");
     QAction *actFiveDay = dayMenu->addAction("5 Ngày");
-    QAction *actSixDay = dayMenu->addAction("6 Ngày");
     QAction *actSevenDay = dayMenu->addAction("7 Ngày");
     dayMenu->setObjectName("dayMenu");
     addShadowEffect(dayMenu);
 
-    btnDay->setMenu(dayMenu);
+    // Dùng lambda để gọi slot mới với số ngày tương ứng
+    connect(actOneDay, &QAction::triggered, this, [this](){ onDisplayDaysChanged(1); });
+    connect(actThreeDay, &QAction::triggered, this, [this](){ onDisplayDaysChanged(3); });
+    connect(actFiveDay, &QAction::triggered, this, [this](){ onDisplayDaysChanged(5); });
+    connect(actSevenDay, &QAction::triggered, this, [this](){ onDisplayDaysChanged(7); });
 
+    btnDay->setMenu(dayMenu);
     homeLayout->addWidget(btnDay);
 
-    homeLayout->addWidget(makeBtn("Tuần làm việc", ":/resource/icons/workWeek.png"));
-    homeLayout->addWidget(makeBtn("Tuần", ":/resource/icons/week.png"));
-    homeLayout->addWidget(makeBtn("Tháng", ":/resource/icons/month.png"));
-    homeLayout->addWidget(makeBtn("Dạng xem tách", ":/resource/icons/split.png"));
+    QToolButton *btnWorkWeek = makeBtn("Tuần làm việc", ":/resource/icons/workWeek.png");
+    connect(btnWorkWeek, &QToolButton::clicked, this, &MainWindow::showWorkWeek);
+    homeLayout->addWidget(btnWorkWeek);
+
+    QToolButton *btnWeek = makeBtn("Tuần", ":/resource/icons/week.png");
+    connect(btnWeek, &QToolButton::clicked, this, &MainWindow::showFullWeek);
+    homeLayout->addWidget(btnWeek);
+
+    QToolButton *btnMonth = makeBtn("Tháng", ":/resource/icons/month.png");
+    connect(btnMonth, &QToolButton::clicked, this, &MainWindow::showMonthView); // <-- THÊM CONNECT
+    homeLayout->addWidget(btnMonth);
+
+    QToolButton *btnSplitView = makeBtn("Thời khóa biểu", ":/resource/icons/split.png");
+    btnSplitView->setPopupMode(QToolButton::InstantPopup); // Chuyển thành menu
+
+    // Tạo menu dùng chung
+    QMenu *splitViewMenu = new QMenu(this);
+    QAction *actPerSlot = splitViewMenu->addAction("Xem theo Tiết");
+    QAction *actPerSession = splitViewMenu->addAction("Xem theo Buổi");
+
+    connect(actPerSlot, &QAction::triggered, this, &MainWindow::showTimetableView);
+    connect(actPerSession, &QAction::triggered, this, &MainWindow::showSessionView);
+
+    btnSplitView->setMenu(splitViewMenu);
+    homeLayout->addWidget(btnSplitView);
 
     //Gạch dọc chia
     homeLayout->addWidget(makeSeparator());
@@ -387,29 +416,43 @@ MainWindow::MainWindow(QWidget *parent)
     btnDayView->setIcon(QIcon(":/resource/icons/7days.png"));
     btnDayView->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     btnDayView->setCursor(Qt::PointingHandCursor);
-    btnDayView->setPopupMode(QToolButton::MenuButtonPopup);
+    btnDayView->setPopupMode(QToolButton::InstantPopup);
     btnDayView->setObjectName("btnDayView");
 
     btnDayView->setMenu(dayMenu); // Gán menu dùng chung
     viewLayout->addWidget(btnDayView);
 
     // --- Các nút còn lại ---
-    viewLayout->addWidget(makeBtn("Tuần làm việc", ":/resource/icons/workWeek.png"));
-    viewLayout->addWidget(makeBtn("Tuần", ":/resource/icons/week.png"));
-    viewLayout->addWidget(makeBtn("Tháng", ":/resource/icons/month.png"));
+    QToolButton *btnWorkWeekView = makeBtn("Tuần làm việc", ":/resource/icons/workWeek.png");
+    connect(btnWorkWeekView, &QToolButton::clicked, this, &MainWindow::showWorkWeek);
+    viewLayout->addWidget(btnWorkWeekView);
+
+    QToolButton *btnWeekView = makeBtn("Tuần", ":/resource/icons/week.png");
+    connect(btnWeekView, &QToolButton::clicked, this, &MainWindow::showFullWeek);
+    viewLayout->addWidget(btnWeekView);
+
+    QToolButton *btnMonthView = makeBtn("Tháng", ":/resource/icons/month.png");
+    connect(btnMonthView, &QToolButton::clicked, this, &MainWindow::showMonthView); // <-- THÊM CONNECT
+    viewLayout->addWidget(btnMonthView);
+
+    QToolButton *btnSplitView_View = makeBtn("Thời khóa biểu", ":/resource/icons/split.png");
+    btnSplitView_View->setPopupMode(QToolButton::InstantPopup); // Chuyển thành menu
+    btnSplitView_View->setMenu(splitViewMenu); // Dùng chung menu
+    viewLayout->addWidget(btnSplitView_View);
+
     viewLayout->addWidget(makeBtn("Lưu dạng xem", ":/resource/icons/save.png"));
 
     // --- Nút "Tỉ lệ thời gian" ---
-    QToolButton *btnTimeScale = new QToolButton;
-    btnTimeScale->setText("  Tỉ lệ thời gian  ▼"); // <-- THAY ĐỔI 1: Thêm mũi tên
-    btnTimeScale->setIcon(QIcon(":/resource/icons/timeScale.png"));
-    btnTimeScale->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-    btnTimeScale->setCursor(Qt::PointingHandCursor);
-    btnTimeScale->setPopupMode(QToolButton::InstantPopup); // <-- THAY ĐỔI 2: Chế độ popup
-    btnTimeScale->setObjectName("btnTimeScale");
+    m_btnTimeScale = new QToolButton;
+    m_btnTimeScale->setText("  Tỉ lệ thời gian  ▼"); // <-- THAY ĐỔI 1: Thêm mũi tên
+    m_btnTimeScale->setIcon(QIcon(":/resource/icons/timeScale.png"));
+    m_btnTimeScale->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    m_btnTimeScale->setCursor(Qt::PointingHandCursor);
+    m_btnTimeScale->setPopupMode(QToolButton::InstantPopup); // <-- THAY ĐỔI 2: Chế độ popup
+    m_btnTimeScale->setObjectName("btnTimeScale");
 
     // Tạo menu thả xuống
-    QMenu *timeScaleMenu = new QMenu(btnTimeScale);
+    QMenu *timeScaleMenu = new QMenu(m_btnTimeScale);
     QAction *act60min = timeScaleMenu->addAction("60 phút - Ít chi tiết");
     QAction *act30min = timeScaleMenu->addAction("30 phút");
     QAction *act15min = timeScaleMenu->addAction("15 phút");
@@ -417,17 +460,24 @@ MainWindow::MainWindow(QWidget *parent)
     QAction *act6min  = timeScaleMenu->addAction("6 phút");
     QAction *act5min  = timeScaleMenu->addAction("5 phút - Nhiều chi tiết");
 
+    connect(act60min, &QAction::triggered, this, [this](){ onTimeScaleChanged(60); });
+    connect(act30min, &QAction::triggered, this, [this](){ onTimeScaleChanged(30); });
+    connect(act15min, &QAction::triggered, this, [this](){ onTimeScaleChanged(15); });
+    connect(act10min, &QAction::triggered, this, [this](){ onTimeScaleChanged(10); });
+    connect(act6min, &QAction::triggered, this, [this](){ onTimeScaleChanged(6); });
+    connect(act5min, &QAction::triggered, this, [this](){ onTimeScaleChanged(5); });
+
     // Gán menu vào nút
-    btnTimeScale->setMenu(timeScaleMenu);
+    m_btnTimeScale->setMenu(timeScaleMenu);
 
     // Thêm nút vào layout
-    viewLayout->addWidget(btnTimeScale);
+    viewLayout->addWidget(m_btnTimeScale);
 
     timeScaleMenu->setObjectName("timeScaleMenu");
     addShadowEffect(timeScaleMenu);
 
     // Gán menu vào nút
-    btnTimeScale->setMenu(timeScaleMenu);
+    m_btnTimeScale->setMenu(timeScaleMenu);
 
     viewLayout->addWidget(makeSeparator());
 
@@ -744,6 +794,7 @@ MainWindow::MainWindow(QWidget *parent)
     miniCalendar->setFixedSize(200, 220);
     miniCalendar->setLocale(QLocale(QLocale::Vietnamese));
     miniCalendar->setFirstDayOfWeek(Qt::Monday);
+    miniCalendar->setVerticalHeaderFormat(QCalendarWidget::NoVerticalHeader);
     sidebarLayout->addWidget(miniCalendar);
     // === PHẦN GHI CHÚ DƯỚI LỊCH NHỎ ===
     QLabel *noteTitle = new QLabel("📝 Ghi chú");
@@ -878,17 +929,39 @@ MainWindow::MainWindow(QWidget *parent)
     // Các thành phần của lịch
     m_dayHeader = new DayHeader;
     m_dayHeader->setObjectName("dayHeaderWidget");
-    TimeRuler *ruler = new TimeRuler;
-    ruler->setObjectName("timeRulerWidget");
+
+    m_timeRuler = new TimeRuler;
+    m_timeRuler->setObjectName("timeRulerWidget");
+    m_timeRuler->setFixedWidth(60); // Cố định chiều rộng của widget
+
     m_calendarView = new CalendarView;
     m_calendarView->setObjectName("mainCalendarView");
 
-    QWidget *corner = new QWidget;
-    corner->setObjectName("calendarCornerWidget");
-    corner->setFixedSize(60, 60);
+    m_calendarCorner = new QWidget;
+    m_calendarCorner->setObjectName("calendarCornerWidget");
+    m_calendarCorner->setFixedSize(60, 60);
 
 
     // -- BƯỚC 2: THÊM CÁC WIDGET VÀO LAYOUT --
+
+    // TẠO PAGE CHO CHẾ ĐỘ XEM THÁNG
+    m_monthView = new MonthViewWidget;
+    m_monthView->setObjectName("monthViewWidget");
+
+    // --- THÊM MỚI: TẠO PAGE CHO CHẾ ĐỘ XEM TKB ---
+    m_timetableView = new TimetableViewWidget;
+    m_timetableView->setObjectName("timetableViewWidget");
+
+    // --- THÊM MỚI: TẠO PAGE CHO CHẾ ĐỘ XEM BUỔI ---
+    m_sessionView = new SessionViewWidget;
+    m_sessionView->setObjectName("sessionViewWidget");
+
+    // TẠO STACKED WIDGET
+    m_viewStack = new QStackedWidget;
+    m_viewStack->addWidget(m_calendarView);      // Page 0 (Timeline)
+    m_viewStack->addWidget(m_monthView);         // Page 1 (Tháng)
+    m_viewStack->addWidget(m_timetableView);     // Page 2 (TKB Tiết)
+    m_viewStack->addWidget(m_sessionView);       // Page 3 (TKB Buổi)
 
     // Thêm vào thanh điều hướng
     dateNavLayout->addWidget(m_btnPrevWeek);
@@ -896,11 +969,17 @@ MainWindow::MainWindow(QWidget *parent)
     dateNavLayout->addWidget(m_btnNextWeek);
     dateNavLayout->addWidget(m_dateNavButton, 1);
 
-    // Thêm vào lưới lịch
-    grid->addWidget(corner, 0, 0);
-    grid->addWidget(m_dayHeader, 0, 1);
-    grid->addWidget(ruler, 1, 0);
-    grid->addWidget(m_calendarView, 1, 1);
+    // Thêm vào lưới lịch (Layout 'grid' của 'calendarContainer')
+    grid->addWidget(m_calendarCorner, 0, 0); // (Hàng 0, Cột 0)
+    grid->addWidget(m_dayHeader, 0, 1);      // (Hàng 0, Cột 1)
+    //grid->addWidget(ruler, 1, 0);
+    //grid->addWidget(m_calendarView, 1, 1);
+    grid->addWidget(m_timeRuler, 1, 0);      // (Hàng 1, Cột 0)
+    grid->addWidget(m_viewStack, 1, 1);      // (Hàng 1, Cột 1)
+
+    // Đồng bộ cột và hàng
+    grid->setColumnStretch(1, 1); // Cho phép Cột 1 (chứa header và stack) co giãn
+    grid->setRowStretch(1, 1);    // Cho phép Hàng 1 (chứa ruler và stack) co giãn
 
     // Thêm vào layout chính của cửa sổ
     QWidget *central = new QWidget(this);
@@ -925,10 +1004,7 @@ MainWindow::MainWindow(QWidget *parent)
     // -- BƯỚC 3: KẾT NỐI TÍN HIỆU (SIGNALS & SLOTS) --
 
     connect(m_calendarView->horizontalScrollBar(), &QScrollBar::valueChanged, m_dayHeader, &DayHeader::setScrollOffset);
-    connect(m_calendarView->verticalScrollBar(), &QScrollBar::valueChanged, ruler, &TimeRuler::setScrollOffset);
-    connect(m_calendarView, &CalendarView::viewResized, this, [this](){
-        m_dayHeader->setDayWidth(m_calendarView->getDayWidth());
-    });
+    connect(m_calendarView->verticalScrollBar(), &QScrollBar::valueChanged, m_timeRuler, &TimeRuler::setScrollOffset);
     connect(tabBar, &QTabBar::currentChanged, this, [=](int index) {
         m_toolbarStack->setCurrentIndex(index);
     });
@@ -942,21 +1018,20 @@ MainWindow::MainWindow(QWidget *parent)
     connect(btnTips, &QToolButton::clicked, this, &MainWindow::toggleTipsPanel);
 
 
-    // -- BƯỚC 4: THÊM DỮ LIỆU MẪU VÀ CẬP NHẬT GIAO DIỆN LẦN ĐẦU --
-
+    // -- BƯỚC 4: THÊM DỮ LIỆU MẪU --
+    // ...
     QDate monday = QDate::currentDate().addDays(-(QDate::currentDate().dayOfWeek() - 1));
-    m_calendarView->addEvent("Toán rời rạc", QColor("#a7d7f9"), QDateTime(monday, QTime(7, 0)), QDateTime(monday, QTime(11, 30)));
+
+    m_calendarView->addEvent("Toán rời rạc", QColor("#a7d7f9"), QDateTime(monday, QTime(7, 0)), QDateTime(monday, QTime(11, 30))); // Sửa lại endTime
+    m_monthView->addEvent(new EventItem("Toán rời rạc", QColor("#a7d7f9"), QDateTime(monday, QTime(7, 0)), QDateTime(monday, QTime(11, 30))));
+    m_timetableView->addEvent(new EventItem("Toán rời rạc", QColor("#a7d7f9"), QDateTime(monday, QTime(7, 0)), QDateTime(monday, QTime(11, 30))));
+    m_sessionView->addEvent(new EventItem("Toán rời rạc", QColor("#a7d7f9"), QDateTime(monday, QTime(7, 0)), QDateTime(monday, QTime(11, 30))));
+
     QDate tuesday = monday.addDays(1);
-    m_calendarView->addEvent("Lập trình hướng đối tượng", QColor("#a7d7f9"), QDateTime(tuesday, QTime(13, 0)), QDateTime(tuesday, QTime(17, 30)));
-    m_calendarView->addEvent("Bơi", QColor("#a7d7f9"), QDateTime(tuesday, QTime(7, 0)), QDateTime(tuesday, QTime(9, 0)));
-    QDate wednesday = monday.addDays(2);
-    m_calendarView->addEvent("Kiến trúc và tổ chức máy tính", QColor("#a7d7f9"), QDateTime(wednesday, QTime(13, 0)), QDateTime(wednesday, QTime(17, 30)));
-    QDate thurday = monday.addDays(3);
-    m_calendarView->addEvent("Thiết kế web", QColor("#a7d7f9"), QDateTime(thurday, QTime(7, 0)), QDateTime(thurday, QTime(11, 30)));
-    QDate saturday = monday.addDays(5);
-    m_calendarView->addEvent("Cấu trúc dữ liệu và giải thuật", QColor("#a7d7f9"), QDateTime(saturday, QTime(7, 0)), QDateTime(saturday, QTime(11, 30)));
-    QDate nextTuesday = tuesday.addDays(7);
-    m_calendarView->addEvent("Sự kiện tuần sau", Qt::red, QDateTime(nextTuesday, QTime(11, 0)), QDateTime(nextTuesday, QTime(12, 30)));
+    m_calendarView->addEvent("Lập trình HĐT", QColor("#a7d7f9"), QDateTime(tuesday, QTime(13, 0)), QDateTime(tuesday, QTime(17, 30))); // Sửa lại endTime
+    m_monthView->addEvent(new EventItem("Lập trình HĐT", QColor("#a7d7f9"), QDateTime(tuesday, QTime(13, 0)), QDateTime(tuesday, QTime(17, 30))));
+    m_timetableView->addEvent(new EventItem("Lập trình HĐT", QColor("#a7d7f9"), QDateTime(tuesday, QTime(13, 0)), QDateTime(tuesday, QTime(17, 30))));
+    m_sessionView->addEvent(new EventItem("Lập trình HĐT", QColor("#a7d7f9"), QDateTime(tuesday, QTime(13, 0)), QDateTime(tuesday, QTime(17, 30))));
 
     tabBar->setCurrentIndex(0);
     m_toolbarStack->setCurrentIndex(0);
@@ -999,25 +1074,59 @@ MainWindow::~MainWindow()
 
 // ----- CÁC HÀM LOGIC MỚI -----
 
+// Sửa hàm updateCalendarDisplay
 void MainWindow::updateCalendarDisplay()
 {
-    // ... code cập nhật label và header giữ nguyên ...
-    QDate endOfWeek = m_currentMonday.addDays(6);
+    int daysToShow;
+    QDate endDate; // Biến để lưu ngày kết thúc
+
+    // KIỂM TRA XEM ĐANG Ở VIEW NÀO
+    if (m_viewStack->currentWidget() == m_monthView) {
+        // Chế độ xem tháng
+        daysToShow = 7; // Header luôn là 7 ngày
+        endDate = m_currentMonday.addDays(6); // 7 ngày, bắt đầu từ m_currentMonday
+
+        // Yêu cầu month view cập nhật (ví dụ: khi nhấn tới/lui)
+        m_monthView->updateView(m_currentMonday);
+
+    } else if (m_viewStack->currentWidget() == m_timetableView) {
+        // Chế độ xem TKB
+        daysToShow = 6; // Luôn là 6 ngày (T2-T7)
+        endDate = m_currentMonday.addDays(daysToShow - 1);
+        m_timetableView->updateView(m_currentMonday);
+
+    } else if (m_viewStack->currentWidget() == m_sessionView) {
+        // Chế độ xem TKB Buổi
+        daysToShow = 6; // Luôn là 6 ngày (T2-T7)
+        endDate = m_currentMonday.addDays(daysToShow - 1);
+        m_sessionView->updateView(m_currentMonday);
+
+    } else {
+        // Chế độ xem timeline (Ngày/Tuần)
+        daysToShow = m_calendarView->getNumberOfDays();
+        endDate = m_currentMonday.addDays(daysToShow - 1);
+
+        // Yêu cầu calendar view cập nhật
+        m_calendarView->updateViewForDateRange(m_currentMonday);
+    }
+
+    // --- PHẦN BỊ THIẾU LÀ Ở ĐÂY ---
+    // Khai báo và gán giá trị cho dateRangeText
     QString dateRangeText;
     QLocale viLocale(QLocale::Vietnamese);
 
-    if (m_currentMonday.month() == endOfWeek.month()) {
+    if (m_currentMonday.month() == endDate.month()) {
         dateRangeText = viLocale.monthName(m_currentMonday.month()) + ", " + m_currentMonday.toString("yyyy");
     } else {
-        dateRangeText = viLocale.monthName(m_currentMonday.month()) + " - " + viLocale.monthName(endOfWeek.month()) + ", " + m_currentMonday.toString("yyyy");
+        dateRangeText = viLocale.monthName(m_currentMonday.month()) + " - " + viLocale.monthName(endDate.month()) + ", " + m_currentMonday.toString("yyyy");
     }
+
+    // Giờ dòng này sẽ hết lỗi
     m_dateNavButton->setText(dateRangeText);
-    m_calendarPopup->setSelectedDate(m_currentMonday); // Cập nhật ngày được chọn trên lịch popup
+    m_calendarPopup->setSelectedDate(m_currentMonday);
 
     m_dayHeader->updateDates(m_currentMonday);
-
-    // Dòng quan trọng: Báo cho CalendarView biết tuần đã thay đổi
-    m_calendarView->updateViewForDateRange(m_currentMonday);
+    // --- KẾT THÚC PHẦN SỬA ---
 }
 
 void MainWindow::showPreviousWeek()
@@ -1034,9 +1143,26 @@ void MainWindow::showNextWeek()
 
 void MainWindow::showToday()
 {
+    m_btnTimeScale->setEnabled(true);
+    // --- THÊM CÁC DÒNG NÀY ĐỂNÓ TRỞ THÀNH HÀM CHUYỂN VIEW HOÀN CHỈNH ---
+    m_viewStack->setCurrentWidget(m_calendarView);
+    m_timeRuler->setVisible(true);
+    m_calendarCorner->setVisible(true);
+
+    // ĐÂY LÀ DÒNG QUAN TRỌNG NHẤT SỬA LỖI CỦA BẠN
+    m_dayHeader->setRightMargin(m_calendarView->verticalScrollBar()->width());
+    // --- KẾT THÚC THÊM MỚI ---
+
+    m_dayHeader->setVisible(true);
+
     QDate today = QDate::currentDate();
     // Tính ngày thứ Hai của tuần hiện tại
     m_currentMonday = today.addDays(-(today.dayOfWeek() - 1));
+
+    // Reset lại số ngày về 7
+    m_calendarView->setNumberOfDays(7);
+    m_dayHeader->setNumberOfDays(7);
+
     updateCalendarDisplay();
 }
 
@@ -1049,6 +1175,11 @@ void MainWindow::onNewEventClicked()
         QDateTime start = dialog.startDateTime();
         QDateTime end = dialog.endDateTime();
         QColor color = dialog.categoryColor(); // <-- THAY ĐỔI: Lấy màu từ danh mục
+
+        m_calendarView->addEvent(title, color, start, end);
+        m_monthView->addEvent(new EventItem(title, color, start, end));
+        m_timetableView->addEvent(new EventItem(title, color, start, end));
+        m_sessionView->addEvent(new EventItem(title, color, start, end));
 
         // Thêm sự kiện vào CalendarView
         m_calendarView->addEvent(title, color, start, end);
@@ -1073,6 +1204,11 @@ void MainWindow::onDateSelectedFromPopup(const QDate &date)
     // Tính toán ngày thứ Hai của tuần chứa ngày được chọn
     int daysToMonday = date.dayOfWeek() - 1;
     m_currentMonday = date.addDays(-daysToMonday);
+
+    // --- THÊM MỚI: Reset lại số ngày về 7 ---
+    m_calendarView->setNumberOfDays(7);
+    m_dayHeader->setNumberOfDays(7);
+    // --- KẾT THÚC THÊM MỚI ---
 
     // Cập nhật lại toàn bộ giao diện
     updateCalendarDisplay();
@@ -1128,6 +1264,9 @@ void MainWindow::changeBackgroundImage(int index, const QString &imagePath)
     style.remove(QRegularExpression("QMainWindow \\{[^\\}]*background-image[^\\}]*\\}"));
 
     QString newRule;
+    // Chuỗi style chung để thêm vào
+    const QString fillStyle = " background-position: center; background-repeat: no-repeat; background-size: cover; ";
+
     switch (index) {
     case 0: // Nền mặc định 1
         newRule = "QMainWindow { background-image: url(:/resource/images/background.jpg); background-position: center; }";
@@ -1164,12 +1303,177 @@ void MainWindow::changeBackgroundImage(int index, const QString &imagePath)
 // THÊM HÀM MỚI NÀY VÀO CUỐI FILE
 void MainWindow::setCalendarTransparency(bool transparent)
 {
-    if (transparent) {
-        m_calendarView->setProperty("transparent", true);
-    } else {
-        m_calendarView->setProperty("transparent", false);
+    // Tạo một danh sách tất cả các view cần thay đổi
+    QList<QWidget*> views = {m_calendarView, m_monthView, m_timetableView, m_sessionView};
+
+    for (QWidget *view : views) {
+        // Đặt thuộc tính [transparent="true"] hoặc [transparent="false"]
+        view->setProperty("transparent", transparent);
+
+        // Yêu cầu Qt làm mới lại style của widget
+        style()->unpolish(view);
+        style()->polish(view);
     }
-    // Yêu cầu Qt làm mới lại style của widget
-    style()->unpolish(m_calendarView);
-    style()->polish(m_calendarView);
+}
+
+void MainWindow::onDisplayDaysChanged(int days)
+{
+    m_btnTimeScale->setEnabled(true);
+    m_viewStack->setCurrentWidget(m_calendarView);
+    m_timeRuler->setVisible(true);
+    m_calendarCorner->setVisible(true);
+
+    m_dayHeader->setRightMargin(m_calendarView->verticalScrollBar()->width());
+
+    m_dayHeader->setVisible(true);
+    QDate today = QDate::currentDate();
+
+    // 1. Tính toán ngày bắt đầu để "Hôm nay" nằm ở giữa
+    // Phép chia số nguyên (integer division) sẽ cho kết quả:
+    // 1 ngày -> offset = 1 / 2 = 0 (bắt đầu từ 'hôm nay')
+    // 3 ngày -> offset = 3 / 2 = 1 (bắt đầu từ 'hôm qua')
+    // 5 ngày -> offset = 5 / 2 = 2 (bắt đầu từ 'hôm kia')
+    // 7 ngày -> offset = 7 / 2 = 3 (bắt đầu từ 3 ngày trước)
+    int offset = days / 2;
+    QDate startDate = today.addDays(-offset);
+
+    // 2. Cập nhật ngày bắt đầu (không còn là thứ Hai nữa)
+    m_currentMonday = startDate;
+
+    // 3. Cập nhật số ngày cho CalendarView và DayHeader
+    m_calendarView->setNumberOfDays(days);
+    m_dayHeader->setNumberOfDays(days);
+
+    // 4. Cập nhật lại toàn bộ hiển thị
+    updateCalendarDisplay();
+}
+
+// TRONG FILE mainwindow.cpp (thêm vào cuối file)
+
+/**
+ * @brief Chuyển chế độ xem sang 5 ngày (Thứ 2 - Thứ 6)
+ * dựa trên tuần hiện tại đang xem.
+ */
+void MainWindow::showWorkWeek()
+{
+    m_btnTimeScale->setEnabled(true);
+    m_viewStack->setCurrentWidget(m_calendarView);
+    m_timeRuler->setVisible(true);
+    m_calendarCorner->setVisible(true);
+
+    m_dayHeader->setRightMargin(m_calendarView->verticalScrollBar()->width());
+
+    m_dayHeader->setVisible(true);
+    // 1. Lấy một ngày tham chiếu (ngày đầu tiên đang xem)
+    QDate referenceDate = m_currentMonday;
+
+    // 2. Tính ngày thứ Hai của tuần chứa ngày đó
+    int daysToMonday = referenceDate.dayOfWeek() - 1;
+    m_currentMonday = referenceDate.addDays(-daysToMonday);
+
+    // 3. Đặt số ngày là 5
+    m_calendarView->setNumberOfDays(5);
+    m_dayHeader->setNumberOfDays(5);
+
+    // 4. Cập nhật lại toàn bộ hiển thị
+    updateCalendarDisplay();
+}
+
+/**
+ * @brief Chuyển chế độ xem về 7 ngày (Thứ 2 - Chủ Nhật)
+ * của tuần hiện tại (giống hệt nút "Hôm nay").
+ */
+void MainWindow::showFullWeek()
+{
+    showToday();
+}
+
+void MainWindow::showMonthView()
+{
+    m_btnTimeScale->setEnabled(false);
+    // 1. Chuyển sang trang xem tháng
+    m_viewStack->setCurrentWidget(m_monthView);
+
+    // 2. Ẩn các thành phần của timeline
+    m_timeRuler->setVisible(false);
+    m_calendarCorner->setVisible(false);
+
+    // 3. Hiển thị DayHeader và đặt 7 ngày
+    m_dayHeader->setVisible(true);
+
+    m_dayHeader->setRightMargin(0);
+
+    m_dayHeader->setNumberOfDays(7); // Chế độ xem tháng luôn có 7 ngày header
+
+    // 4. Cập nhật ngày
+    // (Đưa về Thứ 2 của tuần hiện tại để header hiển thị đúng)
+    QDate today = QDate::currentDate();
+    m_currentMonday = today.addDays(-(today.dayOfWeek() - 1));
+
+    m_dayHeader->updateDates(m_currentMonday);
+    m_monthView->updateView(today); // Yêu cầu MonthView vẽ tháng hiện tại
+
+    // 5. Cập nhật nhãn tháng/năm
+    updateCalendarDisplay(); // Cần sửa hàm này
+}
+
+void MainWindow::showTimetableView()
+{
+    m_btnTimeScale->setEnabled(false);
+    // 1. Chuyển sang trang xem TKB
+    m_viewStack->setCurrentWidget(m_timetableView);
+
+    // 2. Ẩn các thành phần không cần thiết
+    m_timeRuler->setVisible(false);
+    m_calendarCorner->setVisible(false);
+    m_dayHeader->setVisible(false); // View này có header riêng
+
+    // 3. Cập nhật ngày
+    QDate today = QDate::currentDate();
+    m_currentMonday = today.addDays(-(today.dayOfWeek() - 1));
+
+    // 4. Cập nhật nhãn tháng/năm
+    updateCalendarDisplay();
+}
+
+void MainWindow::showSessionView()
+{
+    m_btnTimeScale->setEnabled(false);
+    // 1. Chuyển sang trang xem TKB Buổi
+    m_viewStack->setCurrentWidget(m_sessionView);
+
+    // 2. Ẩn các thành phần không cần thiết
+    m_timeRuler->setVisible(false);
+    m_calendarCorner->setVisible(false);
+    m_dayHeader->setVisible(false); // View này có header riêng
+
+    // 3. Cập nhật ngày
+    QDate today = QDate::currentDate();
+    m_currentMonday = today.addDays(-(today.dayOfWeek() - 1));
+
+    // 4. Cập nhật nhãn tháng/năm
+    updateCalendarDisplay();
+}
+
+void MainWindow::onTimeScaleChanged(int minutes)
+{
+    // 1. Áp dụng tỷ lệ mới cho CalendarView
+    m_calendarView->setTimeScale(minutes);
+
+    // 2. Lấy chiều cao mới từ CalendarView
+    double newHourHeight = m_calendarView->getHourHeight();
+
+    // 3. "Ra lệnh" cho TimeRuler sử dụng chiều cao đó
+    m_timeRuler->setHourHeight(newHourHeight);
+
+    // 4. Nếu đang ở view khác, tự động chuyển về view Tuần
+    if (m_viewStack->currentWidget() != m_calendarView) {
+        showFullWeek();
+        // (showFullWeek sẽ tự động gọi setRightMargin, v.v.)
+    }
+
+    // 5. Tự động cuộn đến 7 giờ sáng
+    QScrollBar *verticalScrollBar = m_calendarView->verticalScrollBar();
+    int scrollToPosition = 7.5 * newHourHeight; // Dùng newHourHeight
+    verticalScrollBar->setValue(scrollToPosition);
 }

@@ -19,6 +19,14 @@ class SidePanel;
 class FunnyTipWidget;
 
 class QStackedWidget;
+class SettingsDialog;
+
+class TimeRuler;
+class MonthViewWidget;
+
+class TimetableViewWidget;
+
+class SessionViewWidget;
 
 QT_BEGIN_NAMESPACE
 namespace Ui {
@@ -49,6 +57,19 @@ private slots: // <-- Thêm private slots
     void changeBackgroundImage(int index, const QString &imagePath);
     void setCalendarTransparency(bool transparent);
 
+    void onDisplayDaysChanged(int days);
+
+    void showWorkWeek();
+    void showFullWeek();
+
+    void showMonthView();
+
+    void showTimetableView();
+
+    void showSessionView();
+
+    void onTimeScaleChanged(int minutes);
+
 private:
     Ui::MainWindow *ui;
     void updateCalendarDisplay();
@@ -60,6 +81,9 @@ private:
     QPushButton *m_btnPrevWeek; // <-- THÊM DÒNG NÀY
     QPushButton *m_btnNextWeek; // <-- THÊM DÒNG NÀY
     QCalendarWidget *m_calendarPopup; // <-- THÊM BIẾN NÀY ĐỂ TRUY CẬP LỊCH POPUP
+
+    QStackedWidget *m_viewStack;   // Thay thế cho m_calendarView trong layout
+    MonthViewWidget *m_monthView;  // Widget xem tháng mới
 
     QWidget *m_topBar;
     SidePanel *m_helpPanel;
@@ -73,6 +97,14 @@ private:
     bool m_sidebarVisible = false;
 
     QStackedWidget *m_toolbarStack;
+
+    TimetableViewWidget *m_timetableView;
+    TimeRuler *m_timeRuler;
+    QWidget *m_calendarCorner;
+
+    SessionViewWidget *m_sessionView;
+
+    QToolButton *m_btnTimeScale;
 
 protected:
     void resizeEvent(QResizeEvent *event) override;

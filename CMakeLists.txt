@@ -24,6 +24,13 @@ set(PROJECT_SOURCES
         eventdialog.h eventdialog.cpp
         sidepanel.h sidepanel.cpp
         funnytipwidget.h funnytipwidget.cpp
+        settingsdialog.h settingsdialog.cpp
+        daydetaildialog.h daydetaildialog.cpp
+        daycellwidget.h daycellwidget.cpp
+        monthviewwidget.h monthviewwidget.cpp
+        timetableslotwidget.h timetableslotwidget.cpp
+        timetableviewwidget.h timetableviewwidget.cpp
+        sessionviewwidget.h sessionviewwidget.cpp
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
@@ -38,6 +45,14 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         eventdialog.h eventdialog.cpp
         sidepanel.h sidepanel.cpp
         funnytipwidget.h funnytipwidget.cpp
+        settingsdialog.h settingsdialog.cpp
+        daydetaildialog.h daydetaildialog.cpp
+        daycellwidget.h daycellwidget.cpp
+        monthviewwidget.h monthviewwidget.cpp
+        timetableslotwidget.h timetableslotwidget.cpp
+        timetableviewwidget.h timetableviewwidget.cpp
+        sessionviewwidget.h sessionviewwidget.cpp
+
 
 
     )

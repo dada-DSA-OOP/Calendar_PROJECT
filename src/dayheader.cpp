@@ -5,17 +5,31 @@
 #include <QStyleOption>
 
 DayHeader::DayHeader(QWidget *parent)
-    : QWidget(parent), m_scrollOffset(0), m_dayWidth(100.0), m_days(7)
+    : QWidget(parent), m_scrollOffset(0), m_dayWidth(0), m_days(7), m_rightMargin(0)
 {
     // Đặt chiều cao cố định cho header
     setFixedHeight(60);
     m_monday = QDate::currentDate().addDays(-(QDate::currentDate().dayOfWeek() - 1));
 }
 
+void DayHeader::setRightMargin(int margin)
+{
+    m_rightMargin = margin;
+
+    // Tính toán lại m_dayWidth ngay lập tức
+    double effectiveWidth = (double)width() - m_rightMargin;
+    if (m_days > 0) {
+        m_dayWidth = effectiveWidth / m_days;
+    } else {
+        m_dayWidth = 0;
+    }
+    update(); // Yêu cầu vẽ lại
+}
+
 void DayHeader::updateDates(const QDate &monday)
 {
-    m_monday = monday;
-    update(); // Vẽ lại với ngày mới
+    m_currentMonday = monday;
+    update(); // Kích hoạt paintEvent
 }
 
 void DayHeader::setScrollOffset(int x)
@@ -53,32 +67,45 @@ void DayHeader::paintEvent(QPaintEvent *event)
             painter.drawLine(QPointF(x, 0), QPointF(x, height()));
         }
 
-        QDate currentDate = m_monday.addDays(day);
+        // --- SỬA LỖI 1: m_monday -> m_currentMonday ---
+        QDate currentDate = m_currentMonday.addDays(day);
 
+        // --- SỬA LỖI 2: 'today' đã được định nghĩa bên ngoài ---
         if (currentDate == today) {
             QPen topBorderPen(QColor("#0078d7"), 5);
             painter.setPen(topBorderPen);
             painter.drawLine(dayRect.topLeft(), dayRect.topRight());
         }
 
-        // --- BẮT ĐẦU PHẦN THAY ĐỔI CHÍNH ---
-        // 1. Chuẩn bị chuỗi HTML để định dạng
+        // --- BẮT ĐẦU PHẦN THAY ĐỔI ---
+
+        // 1. Lấy tên thứ đầy đủ (ví dụ: "Thứ 2")
         QString dayName = QLocale("vi_VN").standaloneDayName(currentDate.dayOfWeek(), QLocale::ShortFormat).toUpper();
-        QString dateNumber = currentDate.toString("d");
-        // Dùng thẻ <b> để in đậm dayName
-        QString htmlText = QString("<p style='color: #0078d7;'><b>%1</b> <br> %2</p>")
-                               .arg(dayName, dateNumber);
 
-        // 2. Thiết lập vùng vẽ chữ căn lề trái, có padding 10px
-        QRectF textRect = dayRect.adjusted(10, 0, -10, 0);
+        // 2. Lấy ngày tháng theo định dạng (d/M)
+        QString dateString = currentDate.toString("d");
 
-        // 3. Dùng QTextDocument để vẽ
-        painter.save(); // Lưu trạng thái painter
+        // 3. Sửa lại HTML
+        // - Căn giữa toàn bộ text (text-align: center)
+        // - Giảm kích thước font của ngày tháng (12pt)
+        QString htmlText = QString(
+                               "<div style='color: #0078d7; font-family: Segoe UI; text-align: left;'>"
+                               "<span style='font-size: 11pt; font-weight: 600;'>%1</span>" // Tên thứ: "THỨ 2"
+                               "<br>"
+                               "<span style='font-size: 12pt; font-weight: 400;'>%2</span>" // Ngày: "(3/11)"
+                               "</div>"
+                               ).arg(dayName, dateString);
+
+        // 4. Căn lề text (bỏ 10px lề trái/phải cũ)
+        QRectF textRect = dayRect.adjusted(0, 0, 0, 0);
+
+        // 5. Dùng QTextDocument để vẽ
+        painter.save();
 
         QTextDocument doc;
         doc.setHtml(htmlText);
         doc.setDefaultFont(painter.font());
-        doc.setTextWidth(textRect.width());
+        doc.setTextWidth(textRect.width()); // Cho phép text căn giữa
 
         // Căn giữa nội dung theo chiều dọc
         qreal yOffset = (textRect.height() - doc.size().height()) / 2.0;
@@ -86,7 +113,33 @@ void DayHeader::paintEvent(QPaintEvent *event)
 
         doc.drawContents(&painter);
 
-        painter.restore(); // Khôi phục trạng thái painter
-        // --- KẾT THÚC PHẦN THAY ĐỔI CHÍNH ---
+        painter.restore();
+    }
+}
+
+void DayHeader::setNumberOfDays(int days)
+{
+    if (days > 0) {
+        m_days = days;
+
+        // SỬA LẠI PHẦN TÍNH TOÁN: Trừ đi lề phải
+        double effectiveWidth = (double)width() - m_rightMargin;
+        m_dayWidth = effectiveWidth / m_days;
+
+        update();
+    }
+}
+
+void DayHeader::resizeEvent(QResizeEvent *event)
+{
+    QWidget::resizeEvent(event);
+
+    // SỬA LẠI PHẦN TÍNH TOÁN: Trừ đi lề phải
+    double effectiveWidth = (double)width() - m_rightMargin;
+
+    if (m_days > 0) {
+        m_dayWidth = effectiveWidth / m_days;
+    } else {
+        m_dayWidth = 0;
     }
 }

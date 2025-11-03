@@ -2,6 +2,7 @@
 #define TIMERULER_H
 
 #include <QWidget>
+#include <QTime>
 
 class TimeRuler : public QWidget
 {
@@ -9,7 +10,7 @@ class TimeRuler : public QWidget
 public:
     explicit TimeRuler(QWidget *parent = nullptr);
 
-    void setHourHeight(double height) { m_hourHeight = height; update(); }
+    void setHourHeight(double height);
 
 public slots:
     void setScrollOffset(int y);

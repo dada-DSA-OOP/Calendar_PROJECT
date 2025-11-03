@@ -62,7 +62,6 @@ void CalendarView::resizeEvent(QResizeEvent *event)
 {
     QGraphicsView::resizeEvent(event);
     updateSceneRect();
-    emit viewResized();
     // Cập nhật lại layout khi resize
     updateViewForDateRange(m_currentMonday);
 }
@@ -91,7 +90,7 @@ void CalendarView::addEvent(const QString &title, const QColor &color, const QDa
 }
 
 // THAY ĐỔI: Logic sắp xếp lại các sự kiện trong một ngày cụ thể
-void CalendarView::relayoutEventsForDate(const QDate &date)
+void CalendarView::relayoutEventsForDate(const QDate &date, int dayIndex)
 {
     double dayWidth = getDayWidth();
 
@@ -135,7 +134,7 @@ void CalendarView::relayoutEventsForDate(const QDate &date)
     int totalColumns = columns.size();
     for (int i = 0; i < columns.size(); ++i) {
         for (EventItem *event : columns[i]) {
-            event->updateGeometry(dayWidth, m_hourHeight, i, totalColumns);
+            event->updateGeometry(dayWidth, m_hourHeight, dayIndex, i, totalColumns);
         }
     }
 }
@@ -152,14 +151,16 @@ void CalendarView::updateViewForDateRange(const QDate &monday)
     m_currentMonday = monday;
     if (!m_currentMonday.isValid()) return;
 
-    QDate sunday = m_currentMonday.addDays(6);
+    // --- THAY ĐỔI Ở ĐÂY ---
+    QDate endDate = m_currentMonday.addDays(m_days - 1); // Dùng m_days thay vì 6
 
     // 1. Lặp qua tất cả các item, ẩn/hiện tùy theo ngày
     for (QGraphicsItem *item : m_scene->items()) {
         if (auto eventItem = qgraphicsitem_cast<EventItem*>(item)) {
             QDate eventDate = eventItem->startTime().date();
-            if (eventDate >= m_currentMonday && eventDate <= sunday) {
-                eventItem->show();
+            // Dùng endDate thay vì sunday
+            if (eventDate >= m_currentMonday && eventDate <= endDate) {
+                    eventItem->show();
             } else {
                 eventItem->hide();
             }
@@ -167,9 +168,12 @@ void CalendarView::updateViewForDateRange(const QDate &monday)
     }
 
     // 2. Sắp xếp lại layout cho từng ngày trong tuần
-    for (int i = 0; i < 7; ++i) {
-        relayoutEventsForDate(m_currentMonday.addDays(i));
+    // Dùng m_days thay vì 7
+    for (int i = 0; i < m_days; ++i) {
+        relayoutEventsForDate(m_currentMonday.addDays(i), i);
     }
+
+    viewport()->update();
 }
 
 void CalendarView::drawForeground(QPainter *painter, const QRectF &rect)
@@ -179,7 +183,8 @@ void CalendarView::drawForeground(QPainter *painter, const QRectF &rect)
     QDateTime now = QDateTime::currentDateTime();
     QDate today = now.date();
 
-    if (today < m_currentMonday || today > m_currentMonday.addDays(6)) {
+    // Dùng m_days thay vì 6
+    if (today < m_currentMonday || today > m_currentMonday.addDays(m_days - 1)) {
         return;
     }
 
@@ -188,7 +193,7 @@ void CalendarView::drawForeground(QPainter *painter, const QRectF &rect)
 
     double y = (now.time().hour() * 60 + now.time().minute()) / 60.0 * m_hourHeight;
 
-    int todayIndex = today.dayOfWeek() - 1;
+    int todayIndex = m_currentMonday.daysTo(today);
     double x_today_start = todayIndex * dayWidth;
     double x_today_end = x_today_start + dayWidth;
 
@@ -218,4 +223,31 @@ void CalendarView::drawForeground(QPainter *painter, const QRectF &rect)
     painter->setPen(Qt::NoPen);          // Không cần viền
     // Vẽ hình tròn với đường kính 12px, căn giữa vào đầu đường kẻ
     painter->drawEllipse(QPointF(x_today_start, y), 4, 4);
+}
+
+void CalendarView::setNumberOfDays(int days)
+{
+    if (days < 1) days = 1; // Đảm bảo luôn có ít nhất 1 ngày
+    m_days = days;
+
+    // Cập nhật lại Scene Rect, vì getDayWidth() phụ thuộc vào m_days
+    updateSceneRect();
+}
+
+void CalendarView::setTimeScale(int minutes)
+{
+    if (minutes <= 0) minutes = 60;
+
+    // 1. Tính toán chiều cao mới cho 1 giờ
+    // (60.0 / minutes) là "số 'khối' trong 1 giờ"
+    // 60.0 là "chiều cao pixel của 1 'khối'"
+    m_hourHeight = (60.0 / minutes) * 60.0;
+
+    // 2. Cập nhật lại Scene Rect (vì tổng chiều cao đã thay đổi)
+    updateSceneRect();
+
+    // 3. Cập nhật lại vị trí/kích thước của tất cả sự kiện
+    updateViewForDateRange(m_currentMonday);
+
+    // 4. Báo cho TimeRuler biết nó cần vẽ lại
 }

@@ -36,21 +36,33 @@ void EventItem::setEndTime(const QDateTime &endTime)
 
 
 // THAY ĐỔI: Logic updateGeometry giờ sẽ tính toán ngày dựa trên QDateTime
-void EventItem::updateGeometry(double dayWidth, double hourHeight, int subColumn, int totalSubColumns)
+void EventItem::updateGeometry(double dayWidth, double hourHeight, int dayIndex, int subColumn, int totalSubColumns)
 {
-    // Lấy ngày trong tuần (Thứ Hai = 1, ..., Chủ Nhật = 7)
-    int dayOfWeek = m_startTime.date().dayOfWeek(); // 1-7
-    int dayIndex = dayOfWeek - 1; // 0-6
+    // --- XÓA 2 DÒNG TÍNH TOÁN CŨ NÀY ĐI ---
+    // int dayOfWeek = m_startTime.date().dayOfWeek(); // 1-7
+    // int dayIndex = dayOfWeek - 1; // 0-6
 
+    // Logic tính X giờ sẽ dùng 'dayIndex' được truyền vào (0, 1, 2...)
     double subColumnWidth = (dayWidth - 10) / totalSubColumns;
     double x = (dayIndex * dayWidth + 5) + (subColumn * subColumnWidth);
 
+    // Phần còn lại của hàm giữ nguyên
     double y_start = (m_startTime.time().hour() * 60 + m_startTime.time().minute()) / 60.0 * hourHeight;
     double y_end = (m_endTime.time().hour() * 60 + m_endTime.time().minute()) / 60.0 * hourHeight;
     double height = y_end - y_start;
 
     setPos(x, y_start);
     setRect(0, 0, subColumnWidth, height);
+}
+
+QString EventItem::title() const
+{
+    return m_title;
+}
+
+QColor EventItem::color() const
+{
+    return m_color;
 }
 
 // ... hàm paint và itemChange không thay đổi ...
@@ -167,8 +179,9 @@ void EventItem::mouseReleaseEvent(QGraphicsSceneMouseEvent *event)
         const double hourHeight = view->getHourHeight();
         if (dayWidth <= 0) return;
 
+        int maxDayIndex = view->getNumberOfDays() - 1; // Ví dụ: 3-day view thì maxDayIndex = 2
         int finalDayIndex = qRound((finalPos.x() - 5) / dayWidth);
-        finalDayIndex = qBound(0, finalDayIndex, 6);
+        finalDayIndex = qBound(0, finalDayIndex, maxDayIndex); // <-- SỬA DÒNG NÀY
 
         const double slotHeight = hourHeight / 4.0;
         int timeSlot = qRound(finalPos.y() / slotHeight);
@@ -288,7 +301,8 @@ void EventItem::updateGhostPosition(QPointF newScenePos)
     auto *view = qobject_cast<CalendarView*>(scene()->views().first());
     if (!view || !m_ghostItem) return;
 
-    const double dayWidth = view->getDayWidth();
+    int maxDayIndex = view->getNumberOfDays() - 1; // Lấy số ngày tối đa
+    const double dayWidth = view->getDayWidth(); // Lấy dayWidth ở đây
     const double hourHeight = view->getHourHeight();
     if (dayWidth <= 0) return;
 
@@ -299,7 +313,7 @@ void EventItem::updateGhostPosition(QPointF newScenePos)
 
     // 2. Bắt dính X (Ngày)
     int dayIndex = qRound((newScenePos.x() - 5) / dayWidth);
-    dayIndex = qBound(0, dayIndex, 6); // Giới hạn từ 0 (Thứ 2) đến 6 (Chủ Nhật)
+    dayIndex = qBound(0, dayIndex, maxDayIndex);
     double snappedX = (dayIndex * dayWidth + 5);
 
     // 3. Cập nhật vị trí cho ghost item

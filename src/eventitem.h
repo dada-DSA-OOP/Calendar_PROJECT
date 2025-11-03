@@ -16,11 +16,14 @@ public:
     EventItem(const QString &title, const QColor &color,
               const QDateTime &startTime, const QDateTime &endTime, QGraphicsItem *parent = nullptr);
 
-    void updateGeometry(double dayWidth, double hourHeight, int subColumn = 0, int totalSubColumns = 1);
+    void updateGeometry(double dayWidth, double hourHeight, int dayIndex, int subColumn = 0, int totalSubColumns = 1);
 
     // THAY ĐỔI: Sửa lại các hàm getter
     QDateTime startTime() const { return m_startTime; }
     QDateTime endTime() const { return m_endTime; }
+
+    QString title() const;
+    QColor color() const;
 
     // THAY ĐỔI: Thêm hàm setter để CalendarView có thể cập nhật
     void setStartTime(const QDateTime &startTime);

@@ -37,5 +37,9 @@
         <file>resource/icons/week.png</file>
         <file>resource/icons/workWeek.png</file>
         <file>resource/icons/yellow_tag.png</file>
+        <file>resource/images/background5.png</file>
+        <file>resource/images/background6.jpg</file>
+        <file>resource/images/background7.jpg</file>
+        <file>resource/images/background4.jpg</file>
     </qresource>
 </RCC>

@@ -23,16 +23,22 @@ public:
     // THAY ĐỔI: Thêm hàm getter này để EventItem có thể truy cập
     QDate getMondayOfCurrentWeek() const { return m_currentMonday; }
 
+    // --- THÊM HÀM NÀY VÀO ĐÂY ---
+    int getNumberOfDays() const { return m_days; }
+
 public slots:
     // THAY ĐỔI: Đổi tên và logic của hàm relayout
-    void relayoutEventsForDate(const QDate &date);
+    void relayoutEventsForDate(const QDate &date, int dayIndex);
     void performInitialLayout();
 
     // THAY ĐỔI: Thêm slot để nhận biết tuần thay đổi
     void updateViewForDateRange(const QDate &monday);
 
+    void setNumberOfDays(int days);
+
+    void setTimeScale(int minutes); // Ví dụ: 30 (phút)
+
 signals:
-    void viewResized();
 
 protected:
     void drawBackground(QPainter *painter, const QRectF &rect) override;

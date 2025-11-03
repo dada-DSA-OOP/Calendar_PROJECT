@@ -127,6 +127,9 @@ QToolButton:pressed {
     color: #005a9e;
     border: 1px solid #a8d2ff;
 }
+QToolButton:disabled {
+    color: #aaaaaa; /* Đặt màu chữ thành xám nhạt khi bị vô hiệu hóa */
+}
 
 /* -------------------------------
    LINEEDIT / TEXTEDIT
@@ -823,4 +826,38 @@ QStatusBar#statusbar {
 
 #todoItemContainer[completed="true"] QCheckBox {
     color: #999; /* Chữ chuyển sang màu xám, tạo cảm giác mờ đi */
+}
+
+/* =====================================================
+   STYLE NỀN CHO CÁC VIEW LỊCH KHÁC NHAU
+===================================================== */
+
+/* --- Nền mặc định (Trắng đục) --- */
+/* Các ô trong View Tháng */
+#monthViewWidget DayCellWidget {
+    background-color: #ffffff;
+}
+/* Các ô trong TKB (Tiết và Buổi) */
+#timetableViewWidget TimetableSlotWidget,
+#sessionViewWidget TimetableSlotWidget {
+    background-color: #ffffff;
+}
+/* Các header (Tên tiết, Tên buổi) trong TKB */
+#timetableViewWidget QLabel,
+#sessionViewWidget QLabel {
+    background-color: #f5f5f5;
+}
+
+/* --- Nền trong suốt (Mica) --- */
+/* Khi parent có [transparent="true"] */
+#monthViewWidget[transparent="true"] DayCellWidget {
+    background-color: rgba(252, 252, 252, 0.85);
+}
+#timetableViewWidget[transparent="true"] TimetableSlotWidget,
+#sessionViewWidget[transparent="true"] TimetableSlotWidget {
+    background-color: rgba(252, 252, 252, 0.85);
+}
+#timetableViewWidget[transparent="true"] QLabel,
+#sessionViewWidget[transparent="true"] QLabel {
+    background-color: rgba(245, 245, 245, 0.85); /* Xám mờ */
 }

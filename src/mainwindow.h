@@ -54,7 +54,7 @@ private slots: // <-- Thêm private slots
     void toggleFeedbackPanel();
 
     void openSettingsDialog();
-    void changeBackgroundImage(int index, const QString &imagePath);
+    void changeBackgroundImage(int index, const QString &imagePath, const QColor &color);
     void setCalendarTransparency(bool transparent);
 
     void onDisplayDaysChanged(int days);

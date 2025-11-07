@@ -1065,6 +1065,8 @@ MainWindow::MainWindow(QWidget *parent)
 
     // Đặt độ trong suốt mặc định cho lịch
     setCalendarTransparency(true);
+
+    changeBackgroundImage(2, QString(), QColor());
 }
 
 MainWindow::~MainWindow()
@@ -1253,44 +1255,60 @@ void MainWindow::openSettingsDialog()
 {
     SettingsDialog dialog(this);
     if (dialog.exec() == QDialog::Accepted) {
-        changeBackgroundImage(dialog.selectedBackgroundIndex(), dialog.selectedImagePath());
-        setCalendarTransparency(dialog.isCalendarTransparent()); // <-- THÊM DÒNG NÀY
+        // Cập nhật cách gọi hàm này
+        changeBackgroundImage(dialog.selectedBackgroundIndex(),
+                              dialog.selectedImagePath(),
+                              dialog.selectedSolidColor());
+
+        setCalendarTransparency(dialog.isCalendarTransparent());
     }
 }
 
-void MainWindow::changeBackgroundImage(int index, const QString &imagePath)
+// Cập nhật hàm này để nhận thêm QColor
+void MainWindow::changeBackgroundImage(int index, const QString &imagePath, const QColor &color)
 {
     QString style = qApp->styleSheet();
+
+    // Xóa cả hai thuộc tính cũ để tránh xung đột
     style.remove(QRegularExpression("QMainWindow \\{[^\\}]*background-image[^\\}]*\\}"));
+    style.remove(QRegularExpression("QMainWindow \\{[^\\}]*background-color[^\\}]*\\}"));
 
     QString newRule;
-    // Chuỗi style chung để thêm vào
-    const QString fillStyle = " background-position: center; background-repeat: no-repeat; background-size: cover; ";
 
-    switch (index) {
-    case 0: // Nền mặc định 1
-        newRule = "QMainWindow { background-image: url(:/resource/images/background.jpg); background-position: center; }";
-        break;
-    case 1: // Nền mặc định 1
-        newRule = "QMainWindow { background-image: url(:/resource/images/background1.jpg); background-position: center; }";
-        break;
-    case 2: // Nền mặc định 2
-        newRule = "QMainWindow { background-image: url(:/resource/images/background2.jpg); background-position: center; }";
-        break;
-    case 3: // Nền mặc định 3
-        newRule = "QMainWindow { background-image: url(:/resource/images/background3.jpg); background-position: center; }";
-        break;
-    case 4: // Tùy chỉnh
+    if (index == 14 && color.isValid()) // 15 là ID của màu đơn sắc
+    {
+        // THÊM LOGIC MỚI: Đặt màu nền
+        newRule = QString("QMainWindow { background-color: %1; }").arg(color.name());
+    }
+    else if (index == 13) // 14 là ID của ảnh tùy chỉnh
+    {
         if (!imagePath.isEmpty()) {
             QString formattedPath = imagePath;
             formattedPath.replace("\\", "/");
-            newRule = QString("QMainWindow { background-image: url('%1'); background-position: center; }").arg(formattedPath);
+            newRule = QString("QMainWindow { background-image: url('%1'); background-position: center; background-repeat: no-repeat; background-size: cover; }").arg(formattedPath);
         }
-        break;
-    default:
-        // Mặc định quay về nền đầu tiên
-        newRule = "QMainWindow { background-image: url(:/resource/images/background.jpg); background-position: center; }";
-        break;
+    }
+    else // Các ảnh nền mặc định (index từ 0 đến 13)
+    {
+        // const QString fillStyle = " background-position: center; background-repeat: no-repeat; background-size: cover; ";
+        switch (index) {
+        case 0: newRule = "QMainWindow { background-image: url(:/resource/images/background1.jpg); background-position: center; }"; break;
+        case 1: newRule = "QMainWindow { background-image: url(:/resource/images/background2.jpg); background-position: center; }"; break;
+        case 2: newRule = "QMainWindow { background-image: url(:/resource/images/background3.jpg); background-position: center; }"; break;
+        case 3: newRule = "QMainWindow { background-image: url(:/resource/images/background4.jpg); background-position: center; }"; break;
+        case 4: newRule = "QMainWindow { background-image: url(:/resource/images/background5.jpg); background-position: center; }"; break;
+        case 5: newRule = "QMainWindow { background-image: url(:/resource/images/background6.jpg); background-position: center; }"; break;
+        case 6: newRule = "QMainWindow { background-image: url(:/resource/images/background7.jpg); background-position: center; }"; break;
+        case 7: newRule = "QMainWindow { background-image: url(:/resource/images/background8.jpg); background-position: center; }"; break;
+        case 8: newRule = "QMainWindow { background-image: url(:/resource/images/background9.jpg); background-position: center; }"; break;
+        case 9: newRule = "QMainWindow { background-image: url(:/resource/images/background10.jpg); background-position: center; }"; break;
+        case 10: newRule = "QMainWindow { background-image: url(:/resource/images/background11.jpg); background-position: center; }"; break;
+        case 11: newRule = "QMainWindow { background-image: url(:/resource/images/background12.jpg); background-position: center; }"; break;
+        case 12: newRule = "QMainWindow { background-image: url(:/resource/images/background13.jpg); background-position: center; }"; break;
+        default: // Mặc định quay về nền đầu tiên
+            newRule = "QMainWindow { background-image: url(:/resource/images/background.jpg); background-position: center; }";
+            break;
+        }
     }
 
     if (!newRule.isEmpty()) {

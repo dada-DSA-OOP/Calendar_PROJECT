@@ -1,5 +1,9 @@
 # Changelog
 
+- 16/11/2025 Hoàn thiện lưu trữ data cho App bằng JSON. - lequocdat8272
+
+- 14/11/2025 Hoàn thiện class bản console. - Nguyễn Quốc Đạt
+
 - 1/11/2025 Hoàn thiện Event các dạng xem lịch. - lequocdat8272
 
 - 31/10/2025 Hoàn thiện sidebar với minicalendar và todolist. - Nguyễn Quốc Đạt

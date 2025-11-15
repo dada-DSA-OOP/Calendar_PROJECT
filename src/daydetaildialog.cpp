@@ -23,8 +23,11 @@ DayDetailDialog::DayDetailDialog(const QDate &date, const QList<EventItem*> &eve
         m_listWidget->addItem("Không có sự kiện nào.");
     } else {
         for (EventItem *event : sortedEvents) {
-            QString startTime = event->startTime().toString("HH:mm");
-            QString endTime = event->endTime().toString("HH:mm");
+            QDateTime localStart = event->startTime().toLocalTime();
+            QDateTime localEnd = event->endTime().toLocalTime();
+
+            QString startTime = localStart.toString("HH:mm");
+            QString endTime = localEnd.toString("HH:mm");
             QString title = event->title();
 
             QListWidgetItem *item = new QListWidgetItem(QString("%1 - %2  |  %3").arg(startTime, endTime, title));

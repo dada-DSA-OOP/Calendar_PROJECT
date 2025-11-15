@@ -9,6 +9,7 @@
 
 CalendarView::CalendarView(QWidget *parent)
     : QGraphicsView(parent), m_days(7), m_hourHeight(60.0)
+    , m_timezoneOffsetSeconds(QDateTime::currentDateTime().offsetFromUtc())
 {
     m_scene = new QGraphicsScene(this);
     setScene(m_scene);
@@ -73,20 +74,33 @@ void CalendarView::updateSceneRect()
 }
 
 
-// THAY ĐỔI: Sửa lại hàm addEvent
-void CalendarView::addEvent(const QString &title, const QColor &color, const QDateTime &startTime, const QDateTime &endTime)
+// Chuyển sang nhận EventItem*
+void CalendarView::addEvent(EventItem *item)
 {
-    EventItem *item = new EventItem(title, color, startTime, endTime);
-
-    // Khi event thay đổi (kéo/thả/resize), chúng ta cần relayout lại ngày cũ và ngày mới của nó
+    // Khi event thay đổi (kéo/thả/resize)
     connect(item, &EventItem::eventChanged, this, [this](EventItem *changedItem){
-        // Logic này có thể được làm phức tạp hơn để chỉ relayout những ngày cần thiết
-        // Nhưng để đơn giản, chúng ta sẽ relayout toàn bộ tuần
         updateViewForDateRange(m_currentMonday);
     });
 
+    // Kết nối tín hiệu click (đã có)
+    connect(item, &EventItem::clicked, this, &CalendarView::eventClicked);
+
+    // --- MỚI: Kết nối tín hiệu kéo thả ---
+    connect(item, &EventItem::eventDragged, this, &CalendarView::onInternalEventDragged);
+    // ------------------------------------
+
     m_scene->addItem(item);
-    item->hide(); // Mặc định ẩn đi, chỉ hiện khi đúng tuần
+    item->hide();
+}
+
+// MỚI: Hàm để xóa
+void CalendarView::removeEvent(EventItem *item)
+{
+    if (item) {
+        m_scene->removeItem(item);
+        // Lưu ý: MainWindow sẽ chịu trách nhiệm 'delete item'
+        // Ở đây chỉ xóa khỏi scene
+    }
 }
 
 // THAY ĐỔI: Logic sắp xếp lại các sự kiện trong một ngày cụ thể
@@ -97,28 +111,32 @@ void CalendarView::relayoutEventsForDate(const QDate &date, int dayIndex)
     QList<EventItem*> dayEvents;
     for (QGraphicsItem *item : m_scene->items()) {
         if (auto eventItem = qgraphicsitem_cast<EventItem*>(item)) {
-            // Chỉ lấy các event của ngày đang xét và đang hiển thị
-            if (eventItem->isVisible() && eventItem->startTime().date() == date) {
+
+            QDateTime utcStartTime = eventItem->startTime();
+            QDate displayDate = utcStartTime.toOffsetFromUtc(m_timezoneOffsetSeconds).date();
+
+            if (!eventItem->isFilteredOut() && displayDate == date) {
                 dayEvents.append(eventItem);
             }
         }
     }
     if (dayEvents.isEmpty()) return;
 
-    // Sắp xếp các sự kiện theo thời gian bắt đầu
+    // Sắp xếp các sự kiện (Vẫn dùng UTC để so sánh tuyệt đối)
     std::sort(dayEvents.begin(), dayEvents.end(), [](EventItem* a, EventItem* b) {
-        if (a->startTime() != b->startTime())
+        if (a->startTime() != b->startTime()) // So sánh UTC
             return a->startTime() < b->startTime();
-        return a->endTime() < b->endTime();
+        return a->endTime() < b->endTime(); // So sánh UTC
     });
 
-    // Thuật toán chia cột (giữ nguyên)
+    // Thuật toán chia cột
     QList<QList<EventItem*>> columns;
     columns.append(QList<EventItem*>());
 
     for (EventItem *event : dayEvents) {
         bool placed = false;
         for (int i = 0; i < columns.size(); ++i) {
+            // So sánh thời gian KẾT THÚC (cũng phải dùng UTC)
             if (columns[i].isEmpty() || event->startTime() >= columns[i].last()->endTime()) {
                 columns[i].append(event);
                 placed = true;
@@ -130,11 +148,17 @@ void CalendarView::relayoutEventsForDate(const QDate &date, int dayIndex)
         }
     }
 
-    // Cập nhật hình dạng cho các sự kiện
+    // Cập nhật hình dạng (Hàm này phải dùng m_displayTimeSpec)
     int totalColumns = columns.size();
     for (int i = 0; i < columns.size(); ++i) {
         for (EventItem *event : columns[i]) {
-            event->updateGeometry(dayWidth, m_hourHeight, dayIndex, i, totalColumns);
+            // Yêu cầu: Hàm updateGeometry phải được sửa
+            // để nhận m_displayTimeSpec
+            // event->updateGeometry(dayWidth, m_hourHeight, dayIndex, i, totalColumns);
+
+            // GIẢ ĐỊNH eventitem.cpp có hàm updateGeometryV2
+            // Bạn cần sửa eventitem.cpp để thêm logic này
+            event->updateGeometry(dayWidth, m_hourHeight, dayIndex, i, totalColumns, m_timezoneOffsetSeconds);
         }
     }
 }
@@ -151,24 +175,36 @@ void CalendarView::updateViewForDateRange(const QDate &monday)
     m_currentMonday = monday;
     if (!m_currentMonday.isValid()) return;
 
-    // --- THAY ĐỔI Ở ĐÂY ---
-    QDate endDate = m_currentMonday.addDays(m_days - 1); // Dùng m_days thay vì 6
+    QDate endDate = m_currentMonday.addDays(m_days - 1);
 
     // 1. Lặp qua tất cả các item, ẩn/hiện tùy theo ngày
     for (QGraphicsItem *item : m_scene->items()) {
         if (auto eventItem = qgraphicsitem_cast<EventItem*>(item)) {
-            QDate eventDate = eventItem->startTime().date();
-            // Dùng endDate thay vì sunday
-            if (eventDate >= m_currentMonday && eventDate <= endDate) {
-                    eventItem->show();
+
+            // === BẮT ĐẦU SỬA LỖI LOGIC ===
+
+            // Lấy ngày hiển thị (display date)
+            QDate eventDate = eventItem->startTime().toOffsetFromUtc(m_timezoneOffsetSeconds).date();
+
+            // Đọc trạng thái BỘ LỌC (từ biến mới)
+            bool isFiltered = eventItem->isFilteredOut();
+
+            // Kiểm tra xem nó có trong phạm vi ngày không
+            bool isInDateRange = (eventDate >= m_currentMonday && eventDate <= endDate);
+
+            // Chỉ HIỆN khi (KHÔNG bị lọc) VÀ (NẰM TRONG TUẦN)
+            if (!isFiltered && isInDateRange) {
+                eventItem->show();
             } else {
+                // ẨN nếu (BỊ LỌC) HOẶC (NẰM NGOÀI TUẦN)
                 eventItem->hide();
             }
+            // === KẾT THÚC SỬA LỖI LOGIC ===
         }
     }
 
     // 2. Sắp xếp lại layout cho từng ngày trong tuần
-    // Dùng m_days thay vì 7
+    // (Phần code này giữ nguyên, nó sẽ tự động bỏ qua các item đã bị hide)
     for (int i = 0; i < m_days; ++i) {
         relayoutEventsForDate(m_currentMonday.addDays(i), i);
     }
@@ -180,7 +216,7 @@ void CalendarView::drawForeground(QPainter *painter, const QRectF &rect)
 {
     QGraphicsView::drawForeground(painter, rect);
 
-    QDateTime now = QDateTime::currentDateTime();
+    QDateTime now = QDateTime::currentDateTime().toOffsetFromUtc(m_timezoneOffsetSeconds);
     QDate today = now.date();
 
     // Dùng m_days thay vì 6
@@ -250,4 +286,17 @@ void CalendarView::setTimeScale(int minutes)
     updateViewForDateRange(m_currentMonday);
 
     // 4. Báo cho TimeRuler biết nó cần vẽ lại
+}
+
+void CalendarView::onInternalEventDragged(EventItem *item, const QDateTime &newStartTime, const QDateTime &newEndTime)
+{
+    // Chỉ cần phát tín hiệu này lên cho MainWindow xử lý
+    emit eventDragged(item, newStartTime, newEndTime);
+}
+
+void CalendarView::setTimezoneOffset(int offsetSeconds)
+{
+    m_timezoneOffsetSeconds = offsetSeconds;
+    // Tên hàm cập nhật của view này là updateViewForDateRange
+    updateViewForDateRange(m_currentMonday);
 }

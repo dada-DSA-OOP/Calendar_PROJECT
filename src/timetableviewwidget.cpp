@@ -60,6 +60,12 @@ TimetableViewWidget::TimetableViewWidget(QWidget *parent)
         for (int j = 0; j < 6; ++j) { // 6 ngày (cột)
             m_slots[j][i] = new TimetableSlotWidget;
             m_gridLayout->addWidget(m_slots[j][i], i + 1, j + 1);
+
+            // --- THÊM DÒNG KẾT NỐI NÀY ---
+            // Kết nối tín hiệu của ô con với tín hiệu của widget này
+            connect(m_slots[j][i], &TimetableSlotWidget::eventClicked,
+                    this, &TimetableViewWidget::eventClicked);
+            // ---------------------------------
         }
     }
 
@@ -70,13 +76,24 @@ TimetableViewWidget::TimetableViewWidget(QWidget *parent)
     setLayout(m_gridLayout);
 }
 
+// MỚI: Thêm hàm removeEvent
+void TimetableViewWidget::removeEvent(EventItem *event)
+{
+    if (!event) return;
+
+    // SỬA LỖI: Phải tìm đúng ngày hiển thị của sự kiện
+    QDate date = event->startTime().toOffsetFromUtc(m_timezoneOffsetSeconds).date();
+    if (m_allEvents.contains(date)) {
+        m_allEvents[date].removeAll(event);
+    }
+}
+
 void TimetableViewWidget::addEvent(EventItem *event)
 {
     // Lưu sự kiện
-    m_allEvents[event->startTime().date()].append(event);
-
-    // Cập nhật lại grid
-    updateView(m_currentMonday);
+    // SỬA LỖI: Chuyển sang ngày hiển thị (display date)
+    QDate displayDate = event->startTime().toOffsetFromUtc(m_timezoneOffsetSeconds).date();
+    m_allEvents[displayDate].append(event);
 }
 
 void TimetableViewWidget::clearGrid()
@@ -96,6 +113,19 @@ void TimetableViewWidget::updateView(const QDate &monday)
     m_currentMonday = monday;
     clearGrid(); // Xóa tất cả sự kiện cũ khỏi các ô
 
+    QMap<QDate, QList<EventItem*>> newAllEvents;
+
+    for (const auto& list : m_allEvents.values()) {
+        for (EventItem* event : list) {
+            // Tính toán lại ngày hiển thị (displayDate) với múi giờ MỚI
+            QDate displayDate = event->startTime().toOffsetFromUtc(m_timezoneOffsetSeconds).date();
+
+            // Thêm vào bản đồ MỚI với đúng ngày
+            newAllEvents[displayDate].append(event);
+        }
+    }
+    m_allEvents = newAllEvents;
+
     QLocale viLocale(QLocale::Vietnamese);
 
     for (int j = 0; j < 6; ++j) { // 6 ngày (Cột, T2-T7)
@@ -110,9 +140,14 @@ void TimetableViewWidget::updateView(const QDate &monday)
         // Lấy các sự kiện của ngày này
         if (m_allEvents.contains(currentDate)) {
             for (EventItem *event : m_allEvents.value(currentDate)) {
+                if (!event || event->isFilteredOut()) {
+                    continue; // Bỏ qua sự kiện đã bị lọc
+                }
 
-                QTime eventStartTime = event->startTime().time();
-                QTime eventEndTime = event->endTime().time();
+                QDateTime displayStart = event->startTime().toOffsetFromUtc(m_timezoneOffsetSeconds);
+                QDateTime displayEnd = event->endTime().toOffsetFromUtc(m_timezoneOffsetSeconds);
+                QTime eventStartTime = displayStart.time(); // <-- ĐÃ SỬA
+                QTime eventEndTime = displayEnd.time(); // <-- ĐÃ SỬA
 
                 // --- LOGIC MỚI: Duyệt qua tất cả 10 tiết học ---
                 for (int i = 0; i < 10; ++i) { // 10 tiết (Hàng)
@@ -135,4 +170,11 @@ void TimetableViewWidget::updateView(const QDate &monday)
             }
         }
     }
+}
+
+void TimetableViewWidget::setTimezoneOffset(int offsetSeconds)
+{
+    m_timezoneOffsetSeconds = offsetSeconds;
+    // Gọi hàm cập nhật của view này
+    updateView(m_currentMonday);
 }

@@ -4,41 +4,40 @@
 #include <QGraphicsView>
 #include <QGraphicsScene>
 #include <QDate>
-#include <QDateTime> // <-- THAY ĐỔI: Dùng QDateTime
+#include <QDateTime>
 
 class EventItem;
-class QTimer; // <-- Thêm forward declaration cho QTimer
+class QTimer;
 
 class CalendarView : public QGraphicsView
 {
     Q_OBJECT
 public:
     explicit CalendarView(QWidget *parent = nullptr);
-    // THAY ĐỔI: Sửa lại hàm addEvent
-    void addEvent(const QString &title, const QColor &color, const QDateTime &startTime, const QDateTime &endTime);
+
+    // THAY ĐỔI: Chuyển sang nhận EventItem*
+    void addEvent(EventItem *item);
+
+    // MỚI: Hàm để xóa
+    void removeEvent(EventItem *item);
 
     double getDayWidth() const;
     double getHourHeight() const { return m_hourHeight; }
-
-    // THAY ĐỔI: Thêm hàm getter này để EventItem có thể truy cập
     QDate getMondayOfCurrentWeek() const { return m_currentMonday; }
-
-    // --- THÊM HÀM NÀY VÀO ĐÂY ---
     int getNumberOfDays() const { return m_days; }
 
 public slots:
-    // THAY ĐỔI: Đổi tên và logic của hàm relayout
     void relayoutEventsForDate(const QDate &date, int dayIndex);
     void performInitialLayout();
-
-    // THAY ĐỔI: Thêm slot để nhận biết tuần thay đổi
     void updateViewForDateRange(const QDate &monday);
-
     void setNumberOfDays(int days);
-
-    void setTimeScale(int minutes); // Ví dụ: 30 (phút)
+    void setTimeScale(int minutes);
+    void onInternalEventDragged(EventItem *item, const QDateTime &newStartTime, const QDateTime &newEndTime);
+    void setTimezoneOffset(int offsetSeconds);
 
 signals:
+    void eventClicked(EventItem *item); // <-- MỚI: Tín hiệu báo cho MainWindow
+    void eventDragged(EventItem *item, const QDateTime &newStartTime, const QDateTime &newEndTime);
 
 protected:
     void drawBackground(QPainter *painter, const QRectF &rect) override;
@@ -47,12 +46,12 @@ protected:
 
 private:
     void updateSceneRect();
-
     QGraphicsScene *m_scene;
     int m_days;
     double m_hourHeight;
-    QDate m_currentMonday; // <-- THAY ĐỔI: Thêm biến lưu ngày thứ Hai của tuần
-    QTimer *m_timer; // <-- THÊM BIẾN TIMER
+    QDate m_currentMonday;
+    QTimer *m_timer;
+    int m_timezoneOffsetSeconds;
 };
 
 #endif // CALENDARVIEW_H

@@ -11,7 +11,7 @@ class EventItem;
 
 class DayCellWidget : public QFrame
 {
-    Q_OBJECT
+    Q_OBJECT // <-- MỚI: BẮT BUỘC PHẢI CÓ
 
 public:
     explicit DayCellWidget(QWidget *parent = nullptr);
@@ -19,13 +19,24 @@ public:
     void addEvent(EventItem *event);
     void clearEvents();
 
+    // MỚI: Hàm để MonthViewWidget gọi khi xóa
+    void removeEvent(EventItem *event);
+
+    // MỚI: Hàm để lấy ngày (cần cho removeEvent)
+    QDate date() const { return m_date; }
+
 signals:
     void cellClicked(const QDate &date, const QList<EventItem*> &events);
 
+    // MỚI: Tín hiệu khi một sự kiện cụ thể được nhấn
+    void eventClicked(EventItem *item);
+
 protected:
     void mouseReleaseEvent(QMouseEvent *event) override;
-
     void resizeEvent(QResizeEvent *event) override;
+
+    // MỚI: Hàm để bắt sự kiện click trên các QLabel con
+    bool eventFilter(QObject *watched, QEvent *event) override;
 
 private:
     void updateEventDisplay(const QSize &newSize);

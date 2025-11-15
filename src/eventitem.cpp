@@ -6,21 +6,100 @@
 #include <QGraphicsSceneMouseEvent>
 #include <QGraphicsScene>
 #include <QGraphicsSceneHoverEvent>
+#include <QApplication>
+#include <QJsonObject>
 
 // THAY ĐỔI: Sửa hàm khởi tạo
 EventItem::EventItem(const QString &title, const QColor &color,
-                     const QDateTime &startTime, const QDateTime &endTime, QGraphicsItem *parent)
+                     const QDateTime &startTime, const QDateTime &endTime,
+                     const QString &description, const QString &showAs,
+                     const QString &category, bool isAllDay,
+                     const EventDialog::RecurrenceRule &rule,
+                     const QString &eventType,
+                     const QJsonObject &extraData,
+                     QGraphicsItem *parent)
     : QObject(),
     QGraphicsRectItem(parent),
     m_title(title), m_color(color),
     m_startTime(startTime), m_endTime(endTime),
+    m_description(description),
+    m_showAs(showAs),
+    m_category(category),
+    m_isAllDay(isAllDay),
+    m_rule(rule),
     m_isResizing(false),
-    m_ghostItem(nullptr)
+    m_ghostItem(nullptr),
+    m_isMoving(false),
+    m_isFilteredOut(false),
+    m_eventType(eventType),
+    m_extraData(extraData)
 {
     setBrush(m_color);
     setPen(Qt::NoPen);
-    setFlag(QGraphicsItem::ItemIsMovable);
+    setFlag(QGraphicsItem::ItemIsMovable); // Flag này vẫn cần
     setAcceptHoverEvents(true);
+
+    // 1. Tạo nội dung cho tooltip
+    QString toolTipText;
+
+    // === SỬA ĐỔI: ĐỌC TỪ extraData ===
+    // 2. Thêm thông tin cuộc họp (nếu có)
+    if (m_eventType == "Cuộc họp") {
+        QString status = m_extraData["meetingStatus"].toString();
+        QString host = m_extraData["host"].toString();
+        QString participants = m_extraData["participants"].toString();
+
+        toolTipText += QString("<b>Trạng thái: %1</b><br>").arg(status);
+        if (!host.isEmpty()) {
+            toolTipText += QString("<b>Chủ trì:</b> %1<br>").arg(host);
+        }
+        if (!participants.isEmpty()) {
+            QStringList participantsList = participants.split(',');
+            toolTipText += "<b>Tham gia:</b><br>";
+            for (const QString &p : participantsList) {
+                if (!p.trimmed().isEmpty()) {
+                    toolTipText += QString("- %1<br>").arg(p.trimmed());
+                }
+            }
+        }
+        toolTipText += "<hr>";
+    } else if (m_eventType == "Học tập") {
+        toolTipText += QString("<b>Môn học: %1</b><br>").arg(m_extraData["subject"].toString());
+        toolTipText += QString("<i>Cách thức: %1</i><br>").arg(m_extraData["studyMethod"].toString());
+        toolTipText += "<hr>";
+    }
+    else if (m_eventType == "Ngày lễ") {
+        QString scope = m_extraData["holidayScope"].toString();
+        toolTipText += QString("<b>Phạm vi: %1</b><br>").arg(scope);
+        if (scope == "Tùy chỉnh") {
+            toolTipText += QString("<i>Tên: %1</i><br>").arg(m_extraData["customHolidayName"].toString());
+        }
+        toolTipText += "<hr>";
+    }
+    else if (m_eventType == "Cuộc hẹn") {
+        QString type = m_extraData["appointmentType"].toString();
+        toolTipText += QString("<b>Loại: %1</b><br>").arg(type);
+        if (type == "Khác") {
+            toolTipText += QString("<i>Tên: %f</i><br>").arg(m_extraData["customAppointmentType"].toString());
+        }
+        toolTipText += QString("<b>Địa điểm:</b> %1<br>").arg(m_extraData["location"].toString());
+        if (m_extraData["isPrivate"].toBool()) {
+            toolTipText += "<i>(Riêng tư)</i><br>";
+        }
+        toolTipText += "<hr>";
+    }
+    // (Sau này bạn có thể 'else if (m_eventType == "Học tập") { ... }' ở đây)
+    // === KẾT THÚC SỬA ĐỔI ===
+
+    // 3. Thêm tiêu đề
+    toolTipText += QString("<b>%1</b><br><br>").arg(m_title);
+
+    // 4. Thêm mô tả
+    if (!m_description.isEmpty()) {
+        toolTipText += m_description;
+    }
+
+    setToolTip(toolTipText);
 }
 
 // THAY ĐỔI: Thêm 2 hàm setter
@@ -36,23 +115,47 @@ void EventItem::setEndTime(const QDateTime &endTime)
 
 
 // THAY ĐỔI: Logic updateGeometry giờ sẽ tính toán ngày dựa trên QDateTime
-void EventItem::updateGeometry(double dayWidth, double hourHeight, int dayIndex, int subColumn, int totalSubColumns)
+void EventItem::updateGeometry(double dayWidth, double hourHeight, int dayIndex, int col, int totalCols, int displayOffsetSeconds)
 {
-    // --- XÓA 2 DÒNG TÍNH TOÁN CŨ NÀY ĐI ---
-    // int dayOfWeek = m_startTime.date().dayOfWeek(); // 1-7
-    // int dayIndex = dayOfWeek - 1; // 0-6
+    // === BẮT ĐẦU LOGIC MỚI ===
 
-    // Logic tính X giờ sẽ dùng 'dayIndex' được truyền vào (0, 1, 2...)
-    double subColumnWidth = (dayWidth - 10) / totalSubColumns;
-    double x = (dayIndex * dayWidth + 5) + (subColumn * subColumnWidth);
+    // 1. Chuyển đổi thời gian lưu trữ (UTC) sang múi giờ hiển thị
+    // (m_startTime và m_endTime của bạn đang là UTC)
+    QDateTime displayStart = m_startTime.toOffsetFromUtc(displayOffsetSeconds);
+    QDateTime displayEnd = m_endTime.toOffsetFromUtc(displayOffsetSeconds);
 
-    // Phần còn lại của hàm giữ nguyên
-    double y_start = (m_startTime.time().hour() * 60 + m_startTime.time().minute()) / 60.0 * hourHeight;
-    double y_end = (m_endTime.time().hour() * 60 + m_endTime.time().minute()) / 60.0 * hourHeight;
-    double height = y_end - y_start;
+    QTime startTime = displayStart.time();
+    QTime endTime = displayEnd.time();
 
-    setPos(x, y_start);
-    setRect(0, 0, subColumnWidth, height);
+    // 2. Tính toán vị trí Y và Chiều cao
+    double yPos = (startTime.hour() * 60 + startTime.minute()) / 60.0 * hourHeight;
+
+    // Tính thời lượng (vẫn dùng secsTo trên UTC để đảm bảo chính xác tuyệt đối)
+    qint64 durationSeconds = m_startTime.secsTo(m_endTime);
+    double height = (durationSeconds / 3600.0) * hourHeight;
+
+    // 3. Xử lý các sự kiện kéo dài qua nửa đêm (theo múi giờ hiển thị)
+    // (Rất quan trọng khi chuyển từ UTC+7 sang UTC)
+    if (displayStart.date() < displayEnd.date()) {
+        // Sự kiện bắt đầu hôm nay và kết thúc vào ngày mai
+        height = (24.0 * hourHeight) - yPos; // Kéo dài đến hết 24:00
+    }
+    // (Trường hợp sự kiện bắt đầu hôm qua và kết thúc hôm nay
+    // sẽ được CalendarView xử lý bằng cách gọi relayoutEventsForDate
+    // cho cả 2 ngày, nên chúng ta không cần xử lý yPos = 0 ở đây)
+
+    // === KẾT THÚC LOGIC MỚI ===
+
+
+    // --- PHẦN LOGIC CŨ (giữ nguyên) ---
+
+    // Tính toán vị trí X
+    double colWidth = dayWidth / totalCols;
+    double xPos = (dayIndex * dayWidth) + (col * colWidth);
+
+    // Cập nhật hình dạng
+    setPos(xPos, yPos);
+    setRect(0, 0, colWidth - 5, height); // Trừ 5px để tạo khoảng hở
 }
 
 QString EventItem::title() const
@@ -77,13 +180,35 @@ void EventItem::paint(QPainter *painter, const QStyleOptionGraphicsItem *option,
     painter->setPen(QPen(m_color.darker(120))); // Viền đậm hơn một chút
     painter->drawRoundedRect(rect(), 5, 5);
 
+    if (m_eventType == "Cuộc họp") {
+        QColor statusColor;
+        QString status = m_extraData["meetingStatus"].toString();
+        if (status == "Đã xác nhận") {
+            statusColor = QColor("#8cbb63"); // Xanh lá cây
+        } else if (status == "Đã hủy") {
+            statusColor = QColor("#d9534f"); // Đỏ
+        } else { // "Dự kiến"
+            statusColor = QColor("#f0ad4e"); // Vàng cam
+        }
+
+        // Vẽ một thanh dọc rộng 4px bên trái, bo góc
+        // Hơi thụt vào 1px so với viền để giữ độ bo của nền
+        QRectF statusBarRect = rect().adjusted(1, 1, 0, -1);
+        statusBarRect.setWidth(4);
+        painter->setBrush(statusColor);
+        painter->setPen(Qt::NoPen);
+        painter->drawRoundedRect(statusBarRect, 3, 3);
+    }
+
     // --- THAY ĐỔI: ĐỊNH NGHĨA VÙNG RESIZE ---
     // Giữ nguyên 5px như logic chuột của bạn
     const int resizeHandleHeight = 5;
 
     // --- THAY ĐỔI: VÙNG VẼ TEXT GIỜ SẼ TRỪ ĐI VÙNG RESIZE ---
     // Chúng ta trừ đi 5px của tay cầm và 5px padding đáy
-    QRectF textRect = rect().adjusted(5, 5, -5, -resizeHandleHeight - 5);
+    // Dịch lề trái: 5px (bình thường) hoặc 12px (nếu là cuộc họp)
+    int leftPadding = (m_eventType == "Cuộc họp") ? 12 : 5;
+    QRectF textRect = rect().adjusted(leftPadding, 5, -5, -resizeHandleHeight - 5);
 
     // Vẽ tiêu đề sự kiện
     painter->setPen(Qt::black);
@@ -146,59 +271,82 @@ QVariant EventItem::itemChange(GraphicsItemChange change, const QVariant &value)
 void EventItem::mouseReleaseEvent(QGraphicsSceneMouseEvent *event)
 {
     auto *view = qobject_cast<CalendarView*>(scene()->views().first());
-    if (!view) return;
-
-    // --- THÊM MỚI: KHÔI PHỤC MÀU SẮC ---
-    // Khôi phục lại màu sắc cho item gốc, BẤT KỂ là resize hay move
-    this->setBrush(m_color);
-    this->setPen(Qt::NoPen); // (hoặc QPen(m_color.darker(120)) nếu bạn muốn)
+    if (!view) {
+        QGraphicsRectItem::mouseReleaseEvent(event);
+        return;
+    }
 
     if (m_isResizing) {
-        // Logic resize release giữ nguyên
+        // --- Kết thúc Resize (Giữ nguyên logic cũ) ---
         m_isResizing = false;
         const double hourHeight = view->getHourHeight();
         int totalMinutes = qRound(rect().height() / hourHeight * 60.0);
         m_endTime = m_startTime.addSecs(totalMinutes * 60);
 
-    } else if (m_ghostItem) {
-        // Nếu đang di chuyển (thả ghost item)
-        // 1. Lấy vị trí cuối cùng (đã bắt dính) của ghost
-        QPointF finalPos = m_ghostItem->pos();
+        // TODO: Logic resize cũng nên hỏi "This/All events"
+        // Tạm thời, chúng ta chỉ emit eventChanged
+        emit eventChanged(this);
 
-        // 2. Xóa ghost item
-        scene()->removeItem(m_ghostItem);
-        delete m_ghostItem;
-        m_ghostItem = nullptr;
+    } else if (m_isMoving) {
+        // --- BẮT ĐẦU SỬA LỖI: Kết thúc Move (Drag) ---
+        m_isMoving = false;
+        this->setBrush(m_color); // Khôi phục màu
+        this->setPen(Qt::NoPen);
 
-        // 3. XÓA DÒNG NÀY (Không cần nữa):
-        // this->setVisible(true);
+        if (m_ghostItem) {
+            QPointF finalPos = m_ghostItem->pos();
+            scene()->removeItem(m_ghostItem);
+            delete m_ghostItem;
+            m_ghostItem = nullptr;
 
-        // 4. Chạy logic cập nhật thời gian
-        const double dayWidth = view->getDayWidth();
-        // ... (phần code còn lại của bạn giữ nguyên) ...
-        const double hourHeight = view->getHourHeight();
-        if (dayWidth <= 0) return;
+            // --- TÍNH TOÁN THỜI GIAN MỚI ---
+            const double dayWidth = view->getDayWidth();
+            const double hourHeight = view->getHourHeight();
+            if (dayWidth <= 0) return;
 
-        int maxDayIndex = view->getNumberOfDays() - 1; // Ví dụ: 3-day view thì maxDayIndex = 2
-        int finalDayIndex = qRound((finalPos.x() - 5) / dayWidth);
-        finalDayIndex = qBound(0, finalDayIndex, maxDayIndex); // <-- SỬA DÒNG NÀY
+            int maxDayIndex = view->getNumberOfDays() - 1;
+            int finalDayIndex = qRound((finalPos.x() - 5) / dayWidth);
+            finalDayIndex = qBound(0, finalDayIndex, maxDayIndex);
 
-        const double slotHeight = hourHeight / 4.0;
-        int timeSlot = qRound(finalPos.y() / slotHeight);
-        int start_minute = timeSlot * 15;
-        QTime newTime(start_minute / 60, start_minute % 60);
+            const double slotHeight = hourHeight / 4.0;
+            int timeSlot = qRound(finalPos.y() / slotHeight);
+            int start_minute = timeSlot * 15;
+            QTime newTime(start_minute / 60, start_minute % 60);
 
-        QDate monday = view->getMondayOfCurrentWeek();
-        QDate newDate = monday.addDays(finalDayIndex);
+            QDate monday = view->getMondayOfCurrentWeek();
+            QDate newDate = monday.addDays(finalDayIndex);
 
-        long long durationMs = m_startTime.msecsTo(m_endTime);
-        m_startTime.setDate(newDate);
-        m_startTime.setTime(newTime);
-        m_endTime = m_startTime.addMSecs(durationMs);
+            long long durationMs = m_startTime.msecsTo(m_endTime);
+
+            // TẠO THỜI GIAN MỚI (NHƯNG KHÔNG GÁN)
+            QDateTime newStartTime(newDate, newTime);
+            QDateTime newEndTime = newStartTime.addMSecs(durationMs);
+
+            // THAY ĐỔI: Không tự mình thay đổi dữ liệu
+            // m_startTime.setDate(newDate); (XÓA)
+            // m_startTime.setTime(newTime); (XÓA)
+            // m_endTime = m_startTime.addMSecs(durationMs); (XÓA)
+
+            // THAY ĐỔI: Phát tín hiệu lên MainWindow
+            emit eventDragged(this, newStartTime, newEndTime);
+            // (Không emit eventChanged(this) nữa)
+        }
+        // --- KẾT THÚC SỬA LỖI ---
+
+    } else {
+        // --- Đây là CLICK (Giữ nguyên) ---
+        emit clicked(this);
+
+        event->accept(); // (1) Báo rằng chúng ta đã xử lý sự kiện này
+        return;          // (2) Dừng hàm tại đây, không lan truyền
     }
 
-    // Phát tín hiệu ở cuối cùng để CalendarView sắp xếp lại
-    emit eventChanged(this);
+    // Reset cờ
+    m_isResizing = false;
+    m_isMoving = false;
+    // (Dòng này bây giờ sẽ chỉ được gọi nếu là drag hoặc resize,
+    // không bao giờ được gọi nếu là click)
+    QGraphicsRectItem::mouseReleaseEvent(event);
 }
 
 
@@ -228,44 +376,28 @@ void EventItem::hoverLeaveEvent(QGraphicsSceneHoverEvent *event)
 
 void EventItem::mousePressEvent(QGraphicsSceneMouseEvent *event)
 {
-    // Kiểm tra xem có nhấn vào "tay cầm" resize không
+    // 1. Kiểm tra resize
     QRectF handle = QRectF(rect().bottomLeft(), QPointF(rect().right(), rect().bottom() - 5));
     if (handle.contains(event->pos())) {
         m_isResizing = true;
-        // Cho phép base class xử lý resize (vì chúng ta không can thiệp)
-        QGraphicsRectItem::mousePressEvent(event);
+        m_isMoving = false;
+        QGraphicsRectItem::mousePressEvent(event); // Để logic resize gốc xử lý
     } else {
-        // Đây là thao tác di chuyển (Move)
+        // 2. Chuẩn bị để di chuyển (hoặc click)
         m_isResizing = false;
-
-        // --- THAY ĐỔI QUAN TRỌNG ---
-        // 1. Ẩn item gốc BẰNG CÁCH LÀM NÓ TRONG SUỐT
-        //    Không dùng setVisible(false), vì nó sẽ làm item mất
-        //    khả năng nhận sự kiện move/release.
-        this->setBrush(Qt::transparent);
-        this->setPen(Qt::NoPen); // Đảm bảo viền cũng trong suốt
-
-        // 2. Lưu vị trí nhấn chuột (để kéo mượt)
+        m_isMoving = false;
         m_dragStartOffset = event->pos();
+        m_pressPos = event->scenePos(); // Lưu vị trí nhấn (trên scene)
 
-        // 3. Tạo ghost item
-        m_ghostItem = new QGraphicsRectItem(this->rect());
-        m_ghostItem->setBrush(QColor(100, 100, 100, 100)); // Màu xám mờ
-        m_ghostItem->setPen(QPen(Qt::black, 1, Qt::DashLine)); // Viền nét đứt
-        m_ghostItem->setZValue(this->zValue() + 1); // Đảm bảo nó nổi lên trên
-        scene()->addItem(m_ghostItem);
-
-        // 4. Đặt vị trí ban đầu cho ghost (đã bắt dính)
-        updateGhostPosition(this->pos());
-
-        event->accept(); // Chúng ta tự xử lý, không gọi base class
+        // Không tạo ghost vội, chỉ chấp nhận sự kiện
+        event->accept();
     }
 }
 
 void EventItem::mouseMoveEvent(QGraphicsSceneMouseEvent *event)
 {
     if (m_isResizing) {
-        // Logic resize giữ nguyên như cũ của bạn
+        // Logic resize giữ nguyên
         auto *view = qobject_cast<CalendarView*>(scene()->views().first());
         if (!view) return;
         double newHeight = event->pos().y();
@@ -278,14 +410,32 @@ void EventItem::mouseMoveEvent(QGraphicsSceneMouseEvent *event)
         }
         setRect(0, 0, rect().width(), snappedHeight);
 
-    } else if (m_ghostItem) {
-        // Nếu đang di chuyển (m_ghostItem tồn tại)
-        // 1. Tính vị trí mới trên scene (chưa bắt dính)
-        QPointF newScenePos = mapToScene(event->pos()) - m_dragStartOffset;
+    } else {
+        // Logic di chuyển (Move)
 
-        // 2. Yêu cầu ghost cập nhật vị trí (hàm này sẽ tự bắt dính)
-        updateGhostPosition(newScenePos);
+        // 1. Kiểm tra xem có phải là drag không (đã di chuyển đủ xa)
+        if (!m_isMoving && (event->scenePos() - m_pressPos).manhattanLength() > QApplication::startDragDistance()) {
+            m_isMoving = true;
 
+            // 2. Tạo ghost item (CHỈ KHI BẮT ĐẦU DRAG)
+            this->setBrush(Qt::transparent); // Ẩn item gốc
+            this->setPen(Qt::NoPen);
+
+            m_ghostItem = new QGraphicsRectItem(this->rect());
+            m_ghostItem->setBrush(QColor(100, 100, 100, 100));
+            m_ghostItem->setPen(QPen(Qt::black, 1, Qt::DashLine));
+            m_ghostItem->setZValue(this->zValue() + 1);
+            scene()->addItem(m_ghostItem);
+
+            // Đặt vị trí ban đầu
+            updateGhostPosition(this->pos());
+        }
+
+        // 3. Nếu đang trong trạng thái drag (m_isMoving = true)
+        if (m_isMoving && m_ghostItem) {
+            QPointF newScenePos = mapToScene(event->pos()) - m_dragStartOffset;
+            updateGhostPosition(newScenePos);
+        }
         event->accept();
     }
 }

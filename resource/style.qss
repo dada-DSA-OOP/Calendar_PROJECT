@@ -861,3 +861,49 @@ QStatusBar#statusbar {
 #sessionViewWidget[transparent="true"] QLabel {
     background-color: rgba(245, 245, 245, 0.85); /* Xám mờ */
 }
+
+/* =====================================================
+   STYLE CẬP NHẬT CHO EVENT DIALOG
+===================================================== */
+
+/* --- Style cho ô Mô tả (QTextEdit) --- */
+EventDialog QTextEdit {
+    font-size: 10pt;
+    padding: 6px; /* Padding 4 cạnh */
+    background-color: transparent;
+    border: 1px solid #dcdcdc; /* Cho TextEdit viền 4 cạnh */
+    border-radius: 4px;
+}
+
+EventDialog QTextEdit:focus {
+    border: 1px solid #0078d7;
+    /* Ghi đè style gạch chân, dùng viền 4 cạnh */
+    border-bottom: 2px solid #0078d7;
+}
+
+/* --- Nút chọn màu --- */
+EventDialog QPushButton#colorButton {
+    padding: 6px 12px;
+    font-weight: bold;
+    border-radius: 4px;
+    text-align: left; /* Căn lề trái mã màu */
+}
+EventDialog QPushButton#colorButton:hover {
+    border: 2px solid #0078d7; /* Hiệu ứng hover rõ rệt hơn */
+}
+
+/* --- Khung lặp lại --- */
+QWidget#recurrenceWidget {
+    background-color: #f8f8f8;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    padding: 10px 10px 10px 15px; /* Thêm lề trong */
+    /* margin-left: 20px; */ /* <-- XÓA DÒNG NÀY */
+}
+
+/* Reset style cho các label bên trong khung lặp lại */
+QWidget#recurrenceWidget QLabel {
+    font-size: 9pt;
+    color: #606060;
+    padding-top: 0px; /* Reset padding của label trong form */
+}

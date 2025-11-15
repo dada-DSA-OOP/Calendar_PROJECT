@@ -3,6 +3,7 @@
 
 #include <QDialog>
 #include <QColor>
+#include <QCheckBox>
 
 class QLineEdit;
 class QComboBox;
@@ -23,6 +24,11 @@ public:
     bool isCalendarTransparent() const;
     QColor selectedSolidColor() const;
 
+    void setCurrentSettings(bool use24Hour, int offsetSeconds);
+    // Hàm để MainWindow lấy giá trị mới
+    bool is24HourFormat() const;
+    int getSelectedOffsetSeconds() const;
+
 private slots:
     void onBrowseClicked();
     void onColorClicked();
@@ -38,6 +44,9 @@ private:
 
     QString m_customImagePath;
     QColor m_selectedColor;
+
+    QCheckBox *m_chk24Hour;
+    QComboBox *m_cmbTimezone;
 };
 
 #endif // SETTINGSDIALOG_H

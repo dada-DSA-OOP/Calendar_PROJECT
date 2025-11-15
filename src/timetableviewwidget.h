@@ -13,13 +13,23 @@ class QLabel;
 
 class TimetableViewWidget : public QWidget
 {
-    Q_OBJECT
+    Q_OBJECT // <-- MỚI: BẮT BUỘC PHẢI CÓ
 
 public:
     explicit TimetableViewWidget(QWidget *parent = nullptr);
 
     void addEvent(EventItem *event);
     void updateView(const QDate &date); // 'date' là ngày Thứ 2 của tuần
+
+    // MỚI: Thêm hàm removeEvent
+    void removeEvent(EventItem *event);
+
+public slots:
+    void setTimezoneOffset(int offsetSeconds);
+
+signals:
+    // MỚI: Tín hiệu để báo cho MainWindow
+    void eventClicked(EventItem *item);
 
 private:
     void clearGrid();
@@ -36,6 +46,8 @@ private:
 
     // Định nghĩa các tiết học
     QList<QTime> m_slotStartTimes;
+
+    int m_timezoneOffsetSeconds;
 };
 
 #endif // TIMETABLEVIEWWIDGET_H

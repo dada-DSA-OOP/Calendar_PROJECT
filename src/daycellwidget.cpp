@@ -4,6 +4,8 @@
 #include <QLabel>
 #include <QMouseEvent>
 #include <QDebug>
+#include <QEvent>
+#include <QVariant>
 
 DayCellWidget::DayCellWidget(QWidget *parent)
     : QFrame(parent)
@@ -72,25 +74,21 @@ void DayCellWidget::addEvent(EventItem *event)
 {
     m_events.append(event);
 
-    // --- THÊM MỚI: Cập nhật màu cho hình tròn ---
-    // Nếu đây là sự kiện ĐẦU TIÊN được thêm vào ngày
+    // --- Cập nhật màu cho hình tròn ---
     if (m_events.size() == 1)
     {
         QColor firstEventColor = event->color();
-        // Cập nhật lại màu nền của hình tròn
         m_compactEventsIndicator->setStyleSheet(
             QString("QLabel { "
                     "  border-radius: 4px; "
                     "  background-color: %1; "
                     "}")
-                .arg(firstEventColor.name(QColor::HexRgb)) // Lấy mã màu (ví dụ: #a7d7f9)
+                .arg(firstEventColor.name(QColor::HexRgb))
             );
     }
 
-    // Chỉ hiển thị tối đa 3-4 sự kiện, sau đó hiển thị "..."
     if (m_eventsLayout->count() < 3) {
         QString title = event->title();
-        // Cắt bớt nếu quá dài
         if (title.length() > 20) {
             title = title.left(17) + "...";
         }
@@ -98,6 +96,17 @@ void DayCellWidget::addEvent(EventItem *event)
         QLabel *eventLabel = new QLabel(title);
         eventLabel->setStyleSheet(QString("background-color: %1; color: black; padding: 2px; border-radius: 3px; font-size: 8pt;")
                                       .arg(event->color().name()));
+
+        // --- CẬP NHẬT ---
+        eventLabel->setCursor(Qt::PointingHandCursor); // (1) Đổi con trỏ chuột
+
+        // (2) Lưu con trỏ EventItem vào QLabel
+        eventLabel->setProperty("eventItem", QVariant::fromValue(event));
+
+        // (3) Cài đặt bộ lọc sự kiện để bắt click
+        eventLabel->installEventFilter(this);
+        // ---------------
+
         m_eventsLayout->addWidget(eventLabel);
     } else if (m_eventsLayout->count() == 3) {
         QLabel *moreLabel = new QLabel("... thêm");
@@ -105,6 +114,48 @@ void DayCellWidget::addEvent(EventItem *event)
         m_eventsLayout->addWidget(moreLabel);
     }
     // Nếu > 4 thì không làm gì cả
+    updateEventDisplay(this->size());
+}
+
+// MỚI: Triển khai hàm removeEvent
+void DayCellWidget::removeEvent(EventItem *event)
+{
+    if (!event || !m_events.contains(event)) return;
+
+    // 1. Xóa khỏi danh sách
+    m_events.removeAll(event);
+
+    // 2. Xóa tất cả các widget QLabel khỏi layout
+    QLayoutItem *child;
+    while ((child = m_eventsLayout->takeAt(0)) != nullptr) {
+        delete child->widget();
+        delete child;
+    }
+
+    // 3. Chạy lại logic addEvent cho các sự kiện còn lại
+    // (Đây là cách đơn giản và an toàn nhất để đảm bảo UI đúng)
+    QList<EventItem*> remainingEvents = m_events;
+    m_events.clear(); // Xóa list tạm thời
+
+    for (EventItem* evt : remainingEvents) {
+        addEvent(evt); // Gọi lại addEvent, nó sẽ tự điền lại m_events
+    }
+
+    // 4. Cập nhật lại màu sắc (nếu cần)
+    if (m_events.isEmpty()) {
+        // Trả về màu mặc định nếu không còn sự kiện
+        m_compactEventsIndicator->setStyleSheet(
+            "QLabel { border-radius: 4px; background-color: #555555; }"
+            );
+    } else {
+        // Lấy màu của sự kiện đầu tiên mới
+        QColor firstEventColor = m_events.first()->color();
+        m_compactEventsIndicator->setStyleSheet(
+            QString("QLabel { border-radius: 4px; background-color: %1; }")
+                .arg(firstEventColor.name(QColor::HexRgb))
+            );
+    }
+
     updateEventDisplay(this->size());
 }
 
@@ -163,4 +214,30 @@ void DayCellWidget::updateEventDisplay(const QSize &newSize)
     // 2. Hiện/ẩn danh sách sự kiện đầy đủ
     // Chỉ hiện khi: (KHÔNG ở chế độ thu gọn)
     m_eventsContainer->setVisible(!isCompact);
+}
+
+// MỚI: Triển khai hàm eventFilter
+bool DayCellWidget::eventFilter(QObject *watched, QEvent *event)
+{
+    // 1. Chỉ quan tâm đến sự kiện nhấn chuột trái
+    if (event->type() == QEvent::MouseButtonRelease)
+    {
+        // 2. Kiểm tra xem có phải là QLabel (eventLabel) không
+        if (qobject_cast<QLabel*>(watched))
+        {
+            // 3. Lấy lại con trỏ EventItem* mà chúng ta đã lưu
+            QVariant eventData = watched->property("eventItem");
+            if (eventData.isValid()) {
+                EventItem *item = eventData.value<EventItem*>();
+                if (item) {
+                    // 4. Phát tín hiệu eventClicked
+                    emit eventClicked(item);
+                    return true; // Báo rằng chúng ta đã xử lý sự kiện
+                }
+            }
+        }
+    }
+
+    // Chuyển tiếp các sự kiện khác (ví dụ: click vào "... thêm")
+    return QFrame::eventFilter(watched, event);
 }

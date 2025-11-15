@@ -13,6 +13,7 @@
 #include <QCheckBox>
 #include <QColorDialog>
 #include <QIcon>
+#include <QComboBox>
 
 // Hàm getPreviewStyle (Giữ nguyên, không thay đổi)
 QString getPreviewStyle(const QColor &bgColor = QColor())
@@ -45,6 +46,65 @@ SettingsDialog::SettingsDialog(QWidget *parent)
     mainLayout->setSpacing(20);
 
     // --- 1. KHUNG GIAO DIỆN ---
+    // === THÊM MỚI: Cài đặt thời gian ===
+    QGroupBox *timeGroup = new QGroupBox("Múi giờ hiển thị");
+    QVBoxLayout *timeLayout = new QVBoxLayout(timeGroup);
+
+    m_cmbTimezone = new QComboBox;
+    m_cmbTimezone->setToolTip("Chọn múi giờ để hiển thị lịch. Mọi sự kiện vẫn được lưu bằng UTC.");
+
+    m_chk24Hour = new QCheckBox("Sử dụng định dạng 24 giờ");
+    m_chk24Hour->setToolTip("Nếu không chọn, sẽ dùng định dạng 12 giờ (ví dụ: 2:00 PM)");
+    m_chk24Hour->setChecked(true); // Mặc định là 24h
+
+    timeLayout->addWidget(m_chk24Hour); // Thêm checkbox vào layout
+
+    // Tạo danh sách múi giờ (từ UTC-12 đến UTC+14)
+    for (int h = -12; h <= 14; ++h) {
+        // Xử lý các múi giờ 30 phút và 45 phút
+        if (h == 3) { // +3:30
+            int offsetSec = (h * 3600) + 1800;
+            m_cmbTimezone->addItem(QString("(UTC+03:30) Tehran"), QVariant(offsetSec));
+        } else if (h == 4) { // +4:30
+            int offsetSec = (h * 3600) + 1800;
+            m_cmbTimezone->addItem(QString("(UTC+04:30) Kabul"), QVariant(offsetSec));
+        } else if (h == 5) { // +5:30, +5:45
+            int offsetSec = (h * 3600) + 1800;
+            m_cmbTimezone->addItem(QString("(UTC+05:30) Delhi, Kolkata"), QVariant(offsetSec));
+            offsetSec = (h * 3600) + 2700;
+            m_cmbTimezone->addItem(QString("(UTC+05:45) Kathmandu"), QVariant(offsetSec));
+        } else if (h == 6) { // +6:30
+            int offsetSec = (h * 3600) + 1800;
+            m_cmbTimezone->addItem(QString("(UTC+06:30) Yangon"), QVariant(offsetSec));
+        } else if (h == 8) { // +8:45
+            int offsetSec = (h * 3600) + 2700;
+            m_cmbTimezone->addItem(QString("(UTC+08:45) Eucla"), QVariant(offsetSec));
+        } else if (h == 9) { // +9:30
+            int offsetSec = (h * 3600) + 1800;
+            m_cmbTimezone->addItem(QString("(UTC+09:30) Adelaide"), QVariant(offsetSec));
+        } else if (h == 10) { // +10:30
+            int offsetSec = (h * 3600) + 1800;
+            m_cmbTimezone->addItem(QString("(UTC+10:30) Lord Howe Island"), QVariant(offsetSec));
+        } else if (h == 12) { // +12:45
+            int offsetSec = (h * 3600) + 2700;
+            m_cmbTimezone->addItem(QString("(UTC+12:45) Chatham Islands"), QVariant(offsetSec));
+        }
+
+        // Thêm múi giờ tròn
+        int offsetSec = h * 3600;
+        QString sign = (h >= 0) ? "+" : "";
+        QString hourStr = QString::number(h).rightJustified(2, '0');
+        m_cmbTimezone->addItem(QString("(UTC%1%2:00)").arg(sign, hourStr), QVariant(offsetSec));
+
+        // Tự động chọn múi giờ +7 (Việt Nam) làm ví dụ
+        if (h == 7) {
+            m_cmbTimezone->setItemText(m_cmbTimezone->count() - 1, "(UTC+07:00) Bangkok, Hanoi, Jakarta");
+        }
+    }
+
+    timeLayout->addWidget(m_cmbTimezone);
+    mainLayout->addWidget(timeGroup);
+
     QGroupBox *appearanceGroup = new QGroupBox("Giao diện");
     QVBoxLayout *appearanceLayout = new QVBoxLayout(appearanceGroup);
 
@@ -127,6 +187,10 @@ SettingsDialog::SettingsDialog(QWidget *parent)
     m_transparentCalendarCheck = new QCheckBox("Làm trong suốt nền lịch chính");
     m_transparentCalendarCheck->setChecked(true);
     appearanceLayout->addWidget(m_transparentCalendarCheck);
+
+    mainLayout->addWidget(appearanceGroup);
+
+    mainLayout->addWidget(timeGroup);
 
     mainLayout->addWidget(appearanceGroup);
 
@@ -226,4 +290,33 @@ QColor SettingsDialog::selectedSolidColor() const
 bool SettingsDialog::isCalendarTransparent() const
 {
     return m_transparentCalendarCheck->isChecked();
+}
+
+void SettingsDialog::setCurrentSettings(bool use24Hour, int offsetSeconds)
+{
+    // THÊM DÒNG NÀY:
+    m_chk24Hour->setChecked(use24Hour);
+    // Tìm index của QComboBox có data là offsetSeconds
+    int index = m_cmbTimezone->findData(QVariant(offsetSeconds));
+    if (index != -1) {
+        m_cmbTimezone->setCurrentIndex(index);
+    } else {
+        // Nếu không tìm thấy (ví dụ: offset của máy là +07:00 = 25200)
+        // và chúng ta chưa thêm nó vào list, hãy tìm offset gần nhất
+        // Tạm thời chỉ đặt về 0 (UTC) nếu không tìm thấy
+        index = m_cmbTimezone->findData(QVariant(0));
+        m_cmbTimezone->setCurrentIndex(index);
+    }
+}
+
+bool SettingsDialog::is24HourFormat() const
+{
+    // Trả về lựa chọn của người dùng
+    return m_chk24Hour->isChecked();
+}
+
+int SettingsDialog::getSelectedOffsetSeconds() const
+{
+    // Lấy data (số giây) mà chúng ta đã lưu
+    return m_cmbTimezone->currentData().toInt();
 }

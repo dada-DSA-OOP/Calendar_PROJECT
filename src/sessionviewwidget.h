@@ -8,7 +8,7 @@
 
 class QGridLayout;
 class EventItem;
-class TimetableSlotWidget; // Chúng ta có thể tái sử dụng widget ô cũ
+class TimetableSlotWidget;
 class QLabel;
 
 class SessionViewWidget : public QWidget
@@ -19,19 +19,26 @@ public:
     explicit SessionViewWidget(QWidget *parent = nullptr);
 
     void addEvent(EventItem *event);
-    void updateView(const QDate &date); // 'date' là ngày Thứ 2 của tuần
+    void updateView(const QDate &date);
+
+    // MỚI: Hàm để xóa
+    void removeEvent(EventItem *event);
+
+public slots: // <-- THÊM MỚI
+    void setTimezoneOffset(int offsetSeconds);
+
+signals:
+    // MỚI: Tín hiệu báo cho MainWindow
+    void eventClicked(EventItem *item);
 
 private:
     void clearGrid();
-
     QGridLayout *m_gridLayout;
-    // Lưới 6x2 (T2-T7, Sáng/Chiều)
     TimetableSlotWidget* m_sessionSlots[6][2];
-
-    QLabel* m_dayHeaders[6]; // T2, T3, ...
-
+    QLabel* m_dayHeaders[6];
     QDate m_currentMonday;
     QMap<QDate, QList<EventItem*>> m_allEvents;
+    int m_timezoneOffsetSeconds;
 };
 
 #endif // SESSIONVIEWWIDGET_H

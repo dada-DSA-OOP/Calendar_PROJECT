@@ -4,6 +4,7 @@
 #include "dayheader.h"
 #include "timeruler.h"
 #include "eventdialog.h"
+#include "eventitem.h"
 #include "sidepanel.h"
 #include "funnytipwidget.h"
 #include "settingsdialog.h"
@@ -47,6 +48,25 @@
 #include <QRegularExpression>
 #include <QListWidget>
 #include <QLineEdit>
+#include <QCloseEvent>
+#include <QDateEdit>
+#include <QPrinter>
+#include <QPainter>
+#include <QFileDialog>
+#include <QPageLayout>
+#include <QPageSize>
+#include <QFileInfo>
+
+#include <QFile>
+#include <QSaveFile> // An toàn hơn QFile để ghi
+#include <QJsonDocument>
+#include <QJsonArray>
+#include <QJsonObject>
+#include <QStandardPaths> // Để tìm thư mục data
+#include <QDir>
+#include <QListWidget> // Cần cho To-Do list
+#include <QTextEdit>   // Cần cho To-Do list
+#include <QCheckBox>   // Cần cho To-Do list
 
 void MainWindow::resizeEvent(QResizeEvent *event)
 {
@@ -87,6 +107,12 @@ void MainWindow::resizeEvent(QResizeEvent *event)
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
+    , m_use24HourFormat(true) // <-- Giá trị mặc định (12h)
+    , m_timezoneOffsetSeconds(QDateTime::currentDateTime().offsetFromUtc())          // <-- Giá trị mặc định (Giờ địa phương)
+    , m_currentBackgroundIndex(2)     // Nền mặc định số 2
+    , m_currentImagePath(QString())   // Đường dẫn ảnh tùy chỉnh rỗng
+    , m_currentSolidColor(QColor())   // Màu tùy chỉnh rỗng
+    , m_isCalendarTransparent(true) // Lịch trong suốt
 {
     ui->setupUi(this);
 
@@ -134,45 +160,86 @@ MainWindow::MainWindow(QWidget *parent)
     btnFilter->setPopupMode(QToolButton::InstantPopup);
     btnFilter->setObjectName("btnFilter");
 
-    QMenu *filterMenu = new QMenu(btnFilter);
-    addShadowEffect(filterMenu);
+    m_filterMenu = new QMenu(btnFilter);
+    addShadowEffect(m_filterMenu);
 
-    QAction *actAppointment = filterMenu->addAction("Cuộc hẹn");
-    actAppointment->setCheckable(true);
-    actAppointment->setChecked(true);
-
-
-    // === Các mục có submenu === //
-    QMenu *menuMeetings = new QMenu("Cuộc họp", filterMenu);
-    addShadowEffect(menuMeetings);
-    QAction *actClearAll = menuMeetings->addAction("Bỏ chọn tất cả");
-    QObject::connect(actClearAll, &QAction::triggered, menuMeetings, [menuMeetings]() {
-        const auto actions = menuMeetings->actions();
-        for (QAction *a : actions)
-            if (a->isCheckable()) a->setChecked(false);
-    });
-    menuMeetings->addSeparator();
-    QAction *header1 = menuMeetings->addAction("Tôi là người tổ chức");
-    header1->setEnabled(false);
-    header1->setFont(QFont("Segoe UI", 9, QFont::Bold));
-    const QStringList meetingTypes = {"Đã gửi", "Bản thảo"};
-    for (const QString &t : meetingTypes) {
-        QAction *a = menuMeetings->addAction("  " + t);
-        a->setCheckable(true);
-        a->setChecked(true);
-    }
-    menuMeetings->addSeparator();
-    QAction *header2 = menuMeetings->addAction("Tôi là người dự");
-    header2->setEnabled(false);
-    header2->setFont(QFont("Segoe UI", 9, QFont::Bold));
-    const QStringList attendeeStatuses = {"Đã chấp nhận", "Đã từ chối", "Dự định", "Đã hủy bỏ", "Chưa trả lời"};
-    for (const QString &t : attendeeStatuses) {
-        QAction *a = menuMeetings->addAction("  " + t);
-        a->setCheckable(true);
-        a->setChecked(true);
+    // 1. Bộ lọc LOẠI SỰ KIỆN (thay cho actAppointment)
+    QMenu *menuEventTypes = new QMenu("Loại sự kiện", m_filterMenu);
+    addShadowEffect(menuEventTypes);
+    QStringList eventTypes = {"Sự kiện", "Cuộc họp", "Học tập", "Ngày lễ", "Cuộc hẹn"};
+    for (const QString &type : eventTypes) {
+        QAction *a = menuEventTypes->addAction(type);
+        a->setCheckable(true); a->setChecked(true);
+        m_eventTypeActions.append(a);
+        connect(a, &QAction::toggled, this, &MainWindow::onFilterChanged);
     }
 
-    QMenu *menuCategory = new QMenu("Thể loại", filterMenu);
+    // 2. Bộ lọc HỌC TẬP (Cách thức)
+    QMenu *menuStudyMethods = new QMenu("Cách thức Học tập", m_filterMenu);
+    addShadowEffect(menuStudyMethods);
+    QStringList studyMethods = {"Trực tiếp", "Trực tuyến", "Học thêm", "Tự học"};
+    for (const QString &method : studyMethods) {
+        QAction *a = menuStudyMethods->addAction(method);
+        a->setCheckable(true); a->setChecked(true);
+        m_studyMethodActions.append(a);
+        connect(a, &QAction::toggled, this, &MainWindow::onFilterChanged);
+    }
+
+    // 3. Bộ lọc NGÀY LỄ (Phạm vi)
+    QMenu *menuHolidayScopes = new QMenu("Phạm vi Ngày lễ", m_filterMenu);
+    addShadowEffect(menuHolidayScopes);
+    QStringList holidayScopes = {"Quốc tế", "Quốc gia", "Tôn giáo", "Tùy chỉnh"};
+    for (const QString &scope : holidayScopes) {
+        QAction *a = menuHolidayScopes->addAction(scope);
+        a->setCheckable(true); a->setChecked(true);
+        m_holidayScopeActions.append(a);
+        connect(a, &QAction::toggled, this, &MainWindow::onFilterChanged);
+    }
+
+    // 4. Bộ lọc CUỘC HẸN (Loại & Riêng tư)
+    QMenu *menuAppointment = new QMenu("Chi tiết Cuộc hẹn", m_filterMenu);
+    addShadowEffect(menuAppointment);
+
+    // 4a. Sub-menu Loại
+    QMenu *menuAppointmentTypes = new QMenu("Loại cuộc hẹn", menuAppointment);
+    addShadowEffect(menuAppointmentTypes);
+    QStringList appointmentTypes = {"Hẹn hò", "Gặp mặt", "Học nhóm", "Đi chơi", "Khác"};
+    for (const QString &type : appointmentTypes) {
+        QAction *a = menuAppointmentTypes->addAction(type);
+        a->setCheckable(true); a->setChecked(true);
+        m_appointmentTypeActions.append(a);
+        connect(a, &QAction::toggled, this, &MainWindow::onFilterChanged);
+    }
+
+    // 4b. Sub-menu Riêng tư
+    QMenu *menuAppointmentPrivacy = new QMenu("Tính riêng tư", menuAppointment);
+    addShadowEffect(menuAppointmentPrivacy);
+    QStringList privacyTypes = {"Công khai", "Riêng tư"};
+    for (const QString &type : privacyTypes) {
+        QAction *a = menuAppointmentPrivacy->addAction(type);
+        a->setCheckable(true); a->setChecked(true);
+        m_appointmentPrivacyActions.append(a);
+        connect(a, &QAction::toggled, this, &MainWindow::onFilterChanged);
+    }
+    menuAppointment->addMenu(menuAppointmentTypes);
+    menuAppointment->addMenu(menuAppointmentPrivacy);
+
+    // === THAY THẾ BẰNG BỘ LỌC TRẠNG THÁI MỚI ===
+    QMenu *menuMeetingStatus = new QMenu("Cuộc họp", m_filterMenu);
+    addShadowEffect(menuMeetingStatus);
+
+    // Thêm "Không phải cuộc họp" để lọc các sự kiện thông thường
+    QStringList meetingStatuses = {"Dự kiến", "Đã xác nhận", "Đã hủy", "Không phải cuộc họp"};
+
+    for (const QString &status : meetingStatuses) {
+        QAction *a = menuMeetingStatus->addAction(status);
+        a->setCheckable(true);
+        a->setChecked(true);
+        m_meetingStatusActions.append(a);
+        connect(a, &QAction::toggled, this, &MainWindow::onFilterChanged);
+    }
+
+    QMenu *menuCategory = new QMenu("Thẻ/Tag", m_filterMenu);
     addShadowEffect(menuCategory);
 
     // Nút "Bỏ chọn tất cả"
@@ -185,9 +252,11 @@ MainWindow::MainWindow(QWidget *parent)
     menuCategory->addSeparator();
 
     // "Chưa được phân loại"
-    QAction *actUncategorized = menuCategory->addAction("Chưa được phân loại");
+    QAction *actUncategorized = menuCategory->addAction("Không");
     actUncategorized->setCheckable(true);
     actUncategorized->setChecked(true);
+    m_categoryActions.append(actUncategorized);
+    connect(actUncategorized, &QAction::toggled, this, &MainWindow::onFilterChanged);
     menuCategory->addSeparator();
 
     // Danh sách thể loại có icon màu
@@ -197,12 +266,12 @@ MainWindow::MainWindow(QWidget *parent)
     };
 
     QList<Category> categories = {
-        {"Red category",    ":/resource/icons/red_tag.png"},
-        {"Orange category", ":/resource/icons/orange_tag.png"},
-        {"Yellow category", ":/resource/icons/yellow_tag.png"},
-        {"Green category",  ":/resource/icons/green_tag.png"},
-        {"Blue category",   ":/resource/icons/blue_tag.png"},
-        {"Purple category", ":/resource/icons/purple_tag.png"}
+        {"Đỏ",    ":/resource/icons/red_tag.png"},
+        {"Cam", ":/resource/icons/orange_tag.png"},
+        {"Vàng", ":/resource/icons/yellow_tag.png"},
+        {"Xanh lá",  ":/resource/icons/green_tag.png"},
+        {"Xanh dương",   ":/resource/icons/blue_tag.png"},
+        {"Tím", ":/resource/icons/purple_tag.png"}
     };
 
     menuCategory->setObjectName("menuCategory");
@@ -211,10 +280,12 @@ MainWindow::MainWindow(QWidget *parent)
         QAction *a = menuCategory->addAction(QIcon(cat.colorIcon), cat.name);
         a->setCheckable(true);
         a->setChecked(true);
+        m_categoryActions.append(a);
+        connect(a, &QAction::toggled, this, &MainWindow::onFilterChanged);
     }
 
 
-    QMenu *menuDisplayAs = new QMenu("Hiển thị như", filterMenu);
+    QMenu *menuDisplayAs = new QMenu("Trạng thái", m_filterMenu);
     addShadowEffect(menuDisplayAs);
 
     // ---- Bỏ chọn tất cả ----
@@ -229,9 +300,9 @@ MainWindow::MainWindow(QWidget *parent)
     // ---- Danh sách lựa chọn ----
     QStringList displayAs = {
         "Rảnh",
-        "Làm việc ở nơi khác",
-        "Dự định",
         "Bận",
+        "Dự định",
+        "Làm việc ở nơi khác",
         "Vắng mặt"
     };
 
@@ -239,10 +310,12 @@ MainWindow::MainWindow(QWidget *parent)
         QAction *a = menuDisplayAs->addAction(opt);
         a->setCheckable(true);
         a->setChecked(true);
+        m_statusActions.append(a);
+        connect(a, &QAction::toggled, this, &MainWindow::onFilterChanged);
     }
 
 
-    QMenu *menuRepeat = new QMenu("Lặp lại", filterMenu);
+    QMenu *menuRepeat = new QMenu("Lặp lại", m_filterMenu);
     addShadowEffect(menuRepeat);
 
     // ---- Danh sách lựa chọn ----
@@ -255,31 +328,22 @@ MainWindow::MainWindow(QWidget *parent)
         QAction *a = menuRepeat->addAction(opt);
         a->setCheckable(true);
         a->setChecked(true);
+        m_recurrenceActions.append(a); // Lưu con trỏ
+        connect(a, &QAction::toggled, this, &MainWindow::onFilterChanged); // Kết nối
     }
 
-    QMenu *menuDirect = new QMenu("Trực tiếp", filterMenu);
-    addShadowEffect(menuDirect);
-
-    // ---- Danh sách lựa chọn ----
-    QStringList displayDirect = {
-        "Đã yêu cầu",
-        "Không yêu cầu"
-    };
-
-    for (const QString &opt : displayDirect) {
-        QAction *a = menuDirect->addAction(opt);
-        a->setCheckable(true);
-        a->setChecked(true);
-    }
+    m_filterMenu->addMenu(menuEventTypes);
+    m_filterMenu->addMenu(menuAppointment);
+    m_filterMenu->addMenu(menuStudyMethods);
+    m_filterMenu->addMenu(menuHolidayScopes);
 
     // Thêm các mục tick + menu con
-    filterMenu->addMenu(menuMeetings);
-    filterMenu->addMenu(menuCategory);
-    filterMenu->addMenu(menuDisplayAs);
-    filterMenu->addMenu(menuRepeat);
-    filterMenu->addMenu(menuDirect);
+    m_filterMenu->addMenu(menuMeetingStatus);
+    m_filterMenu->addMenu(menuCategory);
+    m_filterMenu->addMenu(menuDisplayAs);
+    m_filterMenu->addMenu(menuRepeat);
 
-    btnFilter->setMenu(filterMenu);
+    btnFilter->setMenu(m_filterMenu);
 
     // --- Hàm tiện ích: tạo bản sao nút Bộ lọc --- //
     auto makeFilterButton = [&](QWidget *parent = nullptr) {
@@ -289,7 +353,7 @@ MainWindow::MainWindow(QWidget *parent)
         b->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
         b->setCursor(Qt::PointingHandCursor);
         b->setPopupMode(QToolButton::InstantPopup);
-        b->setMenu(filterMenu); // dùng chung menu
+        b->setMenu(m_filterMenu); // dùng chung menu
         return b;
     };
 
@@ -326,13 +390,25 @@ MainWindow::MainWindow(QWidget *parent)
     btnNewEvent->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     btnNewEvent->setCursor(Qt::PointingHandCursor);
     // THAY ĐỔI: Chuyển từ MenuButtonPopup sang chế độ nút bấm thường
-    // btnNewEvent->setPopupMode(QToolButton::MenuButtonPopup);
     btnNewEvent->setObjectName("btnNewEvent");
+    btnNewEvent->setPopupMode(QToolButton::InstantPopup);
 
     // Menu thả xuống
     QMenu *newEventMenu = new QMenu(btnNewEvent);
-    QAction *actNewMail = newEventMenu->addAction(QIcon(":/resource/icons/message.png"), "Thư");
-    QAction *actNewEvent = newEventMenu->addAction(QIcon(":/resource/icons/calendarEvent.png"), "Sự kiện");
+    QAction *actNewEvent = newEventMenu->addAction(QIcon(":/resource/icons/calendarEvent.png"), "  Sự kiện");
+    QAction *actNewMeeting = newEventMenu->addAction(QIcon(":/resource/icons/message.png"), "  Cuộc họp");
+    QAction *actNewStudy = newEventMenu->addAction(QIcon(":/resource/icons/diagnostics.png"), "  Học tập");
+    QAction *actNewHoliday = newEventMenu->addAction(QIcon(":/resource/icons/vacation.png"), "  Ngày lễ");
+    QAction *actNewAppointment = newEventMenu->addAction(QIcon(":/resource/icons/mobile.png"), "  Cuộc hẹn");
+
+    connect(actNewMeeting, &QAction::triggered, this, &MainWindow::onNewMeetingClicked);
+    connect(actNewEvent, &QAction::triggered, this, &MainWindow::onNewEventClicked);
+
+    // Kết nối 3 action mới
+    connect(actNewStudy, &QAction::triggered, this, &MainWindow::onNewStudyClicked);
+    connect(actNewHoliday, &QAction::triggered, this, &MainWindow::onNewHolidayClicked);
+    connect(actNewAppointment, &QAction::triggered, this, &MainWindow::onNewAppointmentClicked);
+
     newEventMenu->setObjectName("eventMenu");
     btnNewEvent->setMenu(newEventMenu);
     addShadowEffect(newEventMenu);
@@ -399,7 +475,25 @@ MainWindow::MainWindow(QWidget *parent)
     //Gạch dọc chia
     homeLayout->addWidget(makeSeparator());
 
-    homeLayout->addWidget(makeBtn("In", ":/resource/icons/printer.png"));
+    QToolButton *btnPrint = makeBtn("In", ":/resource/icons/printer.png");
+    connect(btnPrint, &QToolButton::clicked, this, &MainWindow::onPrintToPdf);
+    homeLayout->addWidget(btnPrint);
+
+    QToolButton *btnImportExport = makeBtn("Nhập/Xuất", ":/resource/icons/save.png");
+        btnImportExport->setPopupMode(QToolButton::InstantPopup); // Chuyển thành menu
+
+    QMenu *importExportMenu = new QMenu(btnImportExport);
+    QAction *actExport = importExportMenu->addAction("Xuất dữ liệu (.json)");
+    QAction *actImport = importExportMenu->addAction("Nhập dữ liệu (.json)");
+    addShadowEffect(importExportMenu); // Thêm hiệu ứng đổ bóng
+    btnImportExport->setMenu(importExportMenu);
+
+    // Kết nối tín hiệu
+    connect(actExport, &QAction::triggered, this, &MainWindow::onExportData);
+    connect(actImport, &QAction::triggered, this, &MainWindow::onImportData);
+
+    homeLayout->addWidget(btnImportExport);
+
     homeLayout->addStretch();
 
     m_toolbarStack->addWidget(homePage);
@@ -439,8 +533,6 @@ MainWindow::MainWindow(QWidget *parent)
     btnSplitView_View->setPopupMode(QToolButton::InstantPopup); // Chuyển thành menu
     btnSplitView_View->setMenu(splitViewMenu); // Dùng chung menu
     viewLayout->addWidget(btnSplitView_View);
-
-    viewLayout->addWidget(makeBtn("Lưu dạng xem", ":/resource/icons/save.png"));
 
     // --- Nút "Tỉ lệ thời gian" ---
     m_btnTimeScale = new QToolButton;
@@ -559,21 +651,90 @@ MainWindow::MainWindow(QWidget *parent)
         return label;
     };
 
-    QGroupBox *helpGb1 = new QGroupBox("Tạo Sự kiện Mới");
+    // Hộp 1: Các thao tác cơ bản
+    QGroupBox *helpGb1 = new QGroupBox("Thao Tác Cơ Bản");
     helpGb1->setLayout(new QVBoxLayout);
-    helpGb1->layout()->addWidget(makeHelpLabel("- Nhấn nút 'Sự kiện mới' ở tab 'Trang chủ'.\n- Điền đầy đủ thông tin và chọn 'OK'."));
+    helpGb1->layout()->addWidget(makeHelpLabel(
+        "<b>Tạo sự kiện mới:</b><br>"
+        "Nhấn nút 'Sự kiện mới' (tab Trang chủ) và chọn loại sự kiện (Cuộc họp, Học tập, v.v.). Điền thông tin và nhấn 'Lưu'."
+        ));
     helpContentLayout->addWidget(helpGb1);
 
+    // Hộp 2: Điều hướng
     QGroupBox *helpGb2 = new QGroupBox("Điều hướng Lịch");
     helpGb2->setLayout(new QVBoxLayout);
-    helpGb2->layout()->addWidget(makeHelpLabel("- Dùng các nút mũi tên ◀, ▶ để chuyển tuần.\n- Nhấn 'Hôm nay' để quay về tuần hiện tại.\n- Nhấn vào tên tháng để chọn ngày bất kỳ."));
+    helpGb2->layout()->addWidget(makeHelpLabel(
+        "<b>Chuyển tuần/tháng:</b><br>"
+        "Dùng các nút mũi tên <b>◀</b> (Lùi) và <b>▶</b> (Tới) trên thanh điều hướng.<br><br>"
+        "<b>Về ngày hiện tại:</b><br>"
+        "Nhấn nút 'Hôm nay'.<br><br>"
+        "<b>Chọn ngày cụ thể:</b><br>"
+        "Nhấn vào tên tháng (ví dụ: 'Tháng 11, 2025') để mở lịch popup và chọn ngày."
+        ));
     helpContentLayout->addWidget(helpGb2);
 
+    // Hộp 3: Tương tác
     QGroupBox *helpGb3 = new QGroupBox("Tương tác với Sự kiện");
     helpGb3->setLayout(new QVBoxLayout);
-    helpGb3->layout()->addWidget(makeHelpLabel("- Kéo thả để di chuyển sự kiện sang ngày/giờ khác.\n- Kéo cạnh dưới của sự kiện để thay đổi thời gian kết thúc."));
+    helpGb3->layout()->addWidget(makeHelpLabel(
+        "<b>Chỉnh sửa nhanh (Kéo thả):</b><br>"
+        "- <b>Di chuyển:</b> Kéo thả sự kiện sang ngày/giờ khác.<br>"
+        "- <b>Thay đổi thời lượng:</b> Kéo cạnh dưới của sự kiện để tăng/giảm thời gian kết thúc.<br><br>"
+        "<b>Chỉnh sửa chi tiết:</b><br>"
+        "Nhấn (click) vào một sự kiện để mở dialog chỉnh sửa chi tiết."
+        ));
     helpContentLayout->addWidget(helpGb3);
-    helpContentLayout->addStretch();
+
+    QGroupBox *helpGb4 = new QGroupBox("Các Chế Độ Xem");
+    helpGb4->setLayout(new QVBoxLayout);
+    helpGb4->layout()->addWidget(makeHelpLabel(
+        "- <b>Ngày/Tuần/Tuần làm việc:</b> Hiển thị lịch theo dạng dòng thời gian (timeline). Bạn có thể thay đổi số ngày xem (1, 3, 5, 7 ngày) từ menu 'Ngày' (tab Trang chủ) hoặc 'Ngày' (tab Dạng xem).<br><br>"
+        "- <b>Tháng:</b> Hiển thị tổng quan sự kiện trong cả tháng.<br><br>"
+        "- <b>Thời khóa biểu (Tiết/Buổi):</b> Hiển thị các sự kiện 'Học tập' và 'Cuộc họp' được sắp xếp vào các tiết/buổi học cố định (T2-T7)."
+        ));
+    helpContentLayout->addWidget(helpGb4);
+
+    QGroupBox *helpGb5 = new QGroupBox("Lọc Sự Kiện");
+    helpGb5->setLayout(new QVBoxLayout);
+    helpGb5->layout()->addWidget(makeHelpLabel(
+        "Nhấn nút 'Bộ lọc' (tab Trang chủ hoặc Dạng xem) để mở menu lọc:<br><br>"
+        "- <b>Lọc theo Loại:</b> Ẩn/hiện các loại sự kiện chính (Học tập, Ngày lễ, v.v.).<br><br>"
+        "- <b>Lọc chi tiết:</b> Ẩn/hiện các sự kiện dựa trên trạng thái (Bận/Rảnh), Thẻ/Tag (Màu sắc), hoặc trạng thái Cuộc họp (Đã xác nhận, v.v.).<br><br>"
+        "- <b>Lưu ý:</b> Các bộ lọc con (ví dụ: 'Cách thức Học tập') chỉ hoạt động khi bộ lọc 'Loại sự kiện' (ví dụ: 'Học tập') tương ứng đang được bật."
+        ));
+    helpContentLayout->addWidget(helpGb5);
+
+    QGroupBox *helpGb6 = new QGroupBox("Tùy Chỉnh Giao Diện");
+    helpGb6->setLayout(new QVBoxLayout);
+    helpGb6->layout()->addWidget(makeHelpLabel(
+        "Nhấn nút 'Cài đặt' (tab Dạng xem) để:<br><br>"
+        "- <b>Thay đổi Ảnh nền/Màu nền.</b><br><br>"
+        "- <b>Bật/Tắt hiệu ứng trong suốt (Mica) cho lịch.</b><br><br>"
+        "- <b>Thay đổi Múi giờ</b> để lịch tự động điều chỉnh khi bạn đi du lịch.<br><br>"
+        "- <b>Chuyển đổi định dạng 12/24 giờ</b> cho cột thời gian."
+        ));
+    helpContentLayout->addWidget(helpGb6);
+
+    QGroupBox *helpGb7 = new QGroupBox("In Lịch ra PDF");
+    helpGb7->setLayout(new QVBoxLayout);
+    helpGb7->layout()->addWidget(makeHelpLabel(
+        "Bạn có thể xuất dạng xem lịch hiện tại (Tuần, Tháng, TKB) ra file PDF để lưu trữ hoặc in ấn.<br><br>"
+        "1. Chuyển sang dạng xem bạn muốn in (ví dụ: 'Tháng').<br>"
+        "2. Trên tab <b>Trang chủ</b>, nhấn nút <b>'In'</b>.<br>"
+        "3. Chọn nơi lưu file PDF của bạn."
+        ));
+    helpContentLayout->addWidget(helpGb7);
+
+    QGroupBox *helpGb8 = new QGroupBox("Sao lưu & Khôi phục");
+    helpGb8->setLayout(new QVBoxLayout);
+    helpGb8->layout()->addWidget(makeHelpLabel(
+        "Bạn có thể sao lưu toàn bộ lịch (sự kiện và ghi chú) ra file <b>.json</b> và khôi phục lại sau (sử dụng menu 'Nhập/Xuất' trên tab <b>Trang chủ</b>).<br><br>"
+        "<b>Xuất (Sao lưu):</b><br>"
+        "Chọn 'Xuất dữ liệu'. Thao tác này sẽ tạo một bản sao lưu (file .json) an toàn. Bạn nên làm điều này thường xuyên.<br><br>"
+        "<b>Nhập (Khôi phục):</b><br>"
+        "Chọn 'Nhập dữ liệu'. <b>LƯU Ý:</b> Thao tác này sẽ <b>XÓA SẠCH</b> toàn bộ dữ liệu hiện tại và thay thế bằng dữ liệu từ file bạn chọn."
+        ));
+    helpContentLayout->addWidget(helpGb8);
 
     // --- 2. Chuẩn bị nội dung cho Tips Panel ---
     QWidget *tipsContentWidget = new QWidget;
@@ -581,14 +742,46 @@ MainWindow::MainWindow(QWidget *parent)
 
     QGroupBox *tipGb1 = new QGroupBox("Đặt làm lịch mặc định");
     tipGb1->setLayout(new QVBoxLayout);
-    tipGb1->layout()->addWidget(makeHelpLabel("Tính năng này sẽ sớm được cập nhật để bạn có thể quản lý tất cả sự kiện từ một nơi duy nhất!"));
+    tipGb1->layout()->addWidget(makeHelpLabel(
+        "<b>Sắp có: Tích hợp lịch!</b><br>"
+        "Tính năng này đang được phát triển. Sắp tới, bạn có thể đồng bộ hóa lịch này với các lịch khác để quản lý mọi thứ từ một nơi duy nhất!"
+        ));
     tipsContentLayout->addWidget(tipGb1);
 
-    QGroupBox *tipGb2 = new QGroupBox("Thay đổi múi giờ");
+    QGroupBox *tipGb2 = new QGroupBox("Mẹo Cho Người Đi Du Lịch");
     tipGb2->setLayout(new QVBoxLayout);
-    tipGb2->layout()->addWidget(makeHelpLabel("Đi du lịch? Vào 'Cài đặt' để thay đổi múi giờ, đảm bảo bạn không bao giờ bị trễ hẹn dù đang ở bất cứ đâu."));
+    tipGb2->layout()->addWidget(makeHelpLabel(
+        "<b>Luôn đúng giờ, mọi lúc mọi nơi!</b><br>"
+        "Bạn sắp có chuyến bay? Hãy vào 'Cài đặt' (tab Dạng xem) và chọn <b>Múi giờ</b> mới của bạn.<br><br>"
+        "Tất cả các sự kiện sẽ tự động dịch chuyển, đảm bảo bạn không bao giờ bị trễ hẹn (hoặc gọi điện về nhà vào lúc 3 giờ sáng!)."
+        ));
     tipsContentLayout->addWidget(tipGb2);
-    tipsContentLayout->addStretch();
+
+    QGroupBox *tipGb3 = new QGroupBox("Lên lịch cho 'Sự Lười Biếng'");
+    tipGb3->setLayout(new QVBoxLayout);
+    tipGb3->layout()->addWidget(makeHelpLabel(
+        "Hãy thử tạo một sự kiện lặp lại vào tối Chủ Nhật tên là <b>'Không làm gì cả'</b>.<br><br>"
+        "Đặt trạng thái là 'Rảnh' (ironically) và chọn màu 'Xanh lá' cho thư giãn. Não của bạn cần những cuộc hẹn 'không-làm-gì' này!"
+        ));
+    tipsContentLayout->addWidget(tipGb3);
+
+    QGroupBox *tipGb4 = new QGroupBox("Mã Hóa Màu Sắc");
+    tipGb4->setLayout(new QVBoxLayout);
+    tipGb4->layout()->addWidget(makeHelpLabel(
+        "Dùng tính năng 'Thẻ/Tag' (Màu sắc) để mã hóa cuộc đời bạn:<br><br>"
+        "- <b>Đỏ:</b> Các sự kiện 'nguy hiểm' (ví dụ: Hẹn nha sĩ, Họp gia đình).<br>"
+        "- <b>Vàng:</b> Các sự kiện 'có thể hủy' (ví dụ: 'Học nhóm' nhưng bạn biết sẽ không ai đi).<br>"
+        "- <b>Tím:</b> Các sự kiện 'bí mật' (ví dụ: 'Dự án thống trị thế giới')."
+        ));
+    tipsContentLayout->addWidget(tipGb4);
+
+    QGroupBox *tipGb5 = new QGroupBox("Ngày lễ 'Tùy Chỉnh'");
+    tipGb5->setLayout(new QVBoxLayout);
+    tipGb5->layout()->addWidget(makeHelpLabel(
+        "Tạo một sự kiện loại <b>'Ngày lễ'</b>, chọn phạm vi <b>'Tùy chỉnh'</b> và đặt tên là <b>'Ngày Tự Thưởng Của Tôi'</b>.<br><br>"
+        "Đặt nó lặp lại vào Thứ Sáu hàng tuần. Đây là ngày lễ quan trọng nhất."
+        ));
+    tipsContentLayout->addWidget(tipGb5);
 
     // --- TẠO FUNNY TIP WIDGET BẰNG LỚP MỚI ---
     m_funnyTipWidget = new FunnyTipWidget(this);
@@ -620,26 +813,61 @@ MainWindow::MainWindow(QWidget *parent)
     supportContentLayout->addWidget(dataGroupBox);
 
     // -- Khung gửi phản hồi --
-    QGroupBox *feedbackGroupBox = new QGroupBox("Gửi phản hồi cho chúng tôi");
-    QVBoxLayout *feedbackLayout = new QVBoxLayout(feedbackGroupBox);
-    feedbackLayout->setSpacing(10);
+    // -- Khung lựa chọn loại hỗ trợ --
+    QGroupBox *supportTypeGroupBox = new QGroupBox("Tôi cần hỗ trợ về:");
+    QVBoxLayout *typeLayout = new QVBoxLayout(supportTypeGroupBox);
 
-    QTextEdit *feedbackTextEdit = new QTextEdit;
-    feedbackTextEdit->setPlaceholderText("Nhập phản hồi của bạn ở đây...");
-    feedbackLayout->addWidget(feedbackTextEdit);
+    QRadioButton *bugRadio = new QRadioButton("Báo cáo lỗi kỹ thuật");
+    QRadioButton *featureRadio = new QRadioButton("Yêu cầu tính năng mới");
+    QRadioButton *questionRadio = new QRadioButton("Hỏi đáp / Vấn đề khác");
+    bugRadio->setChecked(true);
 
-    QPushButton *submitButton = new QPushButton("Gửi đi");
-    submitButton->setObjectName("submitButton");
-    submitButton->setCursor(Qt::PointingHandCursor);
+    typeLayout->addWidget(bugRadio);
+    typeLayout->addWidget(featureRadio);
+    typeLayout->addWidget(questionRadio);
+    supportContentLayout->addWidget(supportTypeGroupBox);
 
-    // Kết nối nút Gửi đi
-    connect(submitButton, &QPushButton::clicked, this, [this, feedbackTextEdit]() {
-        QMessageBox::information(this, "Đã gửi", "Cảm ơn bạn đã gửi phản hồi!");
-        feedbackTextEdit->clear();
+    // -- Khu vực nhập liệu động với QStackedWidget --
+    QStackedWidget *supportStackedWidget = new QStackedWidget;
+
+    // (Chúng ta sao chép logic từ 'createFeedbackPage'
+    // vì lambda đó nằm ngoài phạm vi)
+    auto createSupportPage = [&](const QString &placeholder) {
+        QWidget *page = new QWidget;
+        QVBoxLayout *layout = new QVBoxLayout(page);
+        QTextEdit *textEdit = new QTextEdit;
+        textEdit->setPlaceholderText(placeholder);
+        QPushButton *submitButton = new QPushButton("Gửi yêu cầu");
+        submitButton->setObjectName("submitButton");
+        submitButton->setCursor(Qt::PointingHandCursor);
+
+        connect(submitButton, &QPushButton::clicked, this, [this, textEdit]() {
+            QMessageBox::information(this, "Đã gửi", "Cảm ơn bạn! Yêu cầu hỗ trợ của bạn đã được ghi lại.");
+            textEdit->clear();
+        });
+
+        layout->addWidget(textEdit);
+        layout->addWidget(submitButton, 0, Qt::AlignRight);
+        return page;
+    };
+
+    // Tạo 3 trang tương ứng
+    supportStackedWidget->addWidget(createSupportPage("Vui lòng mô tả lỗi bạn gặp phải (các bước tái hiện, kết quả mong đợi, kết quả thực tế)..."));
+    supportStackedWidget->addWidget(createSupportPage("Bạn có ý tưởng tuyệt vời nào cho ứng dụng? Hãy mô tả tính năng đó ở đây..."));
+    supportStackedWidget->addWidget(createSupportPage("Bạn có câu hỏi hoặc vấn đề nào khác cần chúng tôi hỗ trợ?"));
+
+    supportContentLayout->addWidget(supportStackedWidget);
+
+    // Kết nối các radio button để chuyển trang
+    connect(bugRadio, &QRadioButton::toggled, [=](bool checked){
+        if (checked) supportStackedWidget->setCurrentIndex(0);
     });
-
-    feedbackLayout->addWidget(submitButton, 0, Qt::AlignRight);
-    supportContentLayout->addWidget(feedbackGroupBox);
+    connect(featureRadio, &QRadioButton::toggled, [=](bool checked){
+        if (checked) supportStackedWidget->setCurrentIndex(1);
+    });
+    connect(questionRadio, &QRadioButton::toggled, [=](bool checked){
+        if (checked) supportStackedWidget->setCurrentIndex(2);
+    });
 
     supportContentLayout->addStretch();
 
@@ -663,24 +891,25 @@ MainWindow::MainWindow(QWidget *parent)
     feedbackContentLayout->setSpacing(15);
 
     // -- Khung lựa chọn loại phản hồi --
-    QGroupBox *typeGroupBox = new QGroupBox("Bạn muốn chia sẻ điều gì?");
-    QVBoxLayout *typeLayout = new QVBoxLayout(typeGroupBox);
+    // === SỬA LỖI: Đổi tên biến (thêm _fb) ===
+    QGroupBox *typeGroupBox_fb = new QGroupBox("Bạn muốn chia sẻ điều gì?");
+    QVBoxLayout *typeLayout_fb = new QVBoxLayout(typeGroupBox_fb);
 
-    QRadioButton *positiveRadio = new QRadioButton("Tôi có một lời khen");
-    QRadioButton *negativeRadio = new QRadioButton("Tôi không thích một điều gì đó");
-    QRadioButton *bugRadio = new QRadioButton("Tôi nghĩ tôi đã tìm thấy một lỗi");
-    positiveRadio->setChecked(true);
+    QRadioButton *positiveRadio_fb = new QRadioButton("Tôi có một lời khen");
+    QRadioButton *negativeRadio_fb = new QRadioButton("Tôi không thích một điều gì đó");
+    QRadioButton *bugRadio_fb = new QRadioButton("Tôi nghĩ tôi đã tìm thấy một lỗi");
+    positiveRadio_fb->setChecked(true);
 
-    typeLayout->addWidget(positiveRadio);
-    typeLayout->addWidget(negativeRadio);
-    typeLayout->addWidget(bugRadio);
-    feedbackContentLayout->addWidget(typeGroupBox);
+    typeLayout_fb->addWidget(positiveRadio_fb);
+    typeLayout_fb->addWidget(negativeRadio_fb);
+    typeLayout_fb->addWidget(bugRadio_fb);
+    feedbackContentLayout->addWidget(typeGroupBox_fb);
 
     // -- Khu vực nhập liệu động với QStackedWidget --
-    QStackedWidget *stackedWidget = new QStackedWidget;
+    QStackedWidget *stackedWidget_fb = new QStackedWidget;
 
-    // Hàm trợ giúp để tạo một trang nhập liệu
-    auto createFeedbackPage = [&](const QString &placeholder) {
+    // === SỬA LỖI: Đổi tên lambda (thêm _fb) ===
+    auto createFeedbackPage_fb = [&](const QString &placeholder) {
         QWidget *page = new QWidget;
         QVBoxLayout *layout = new QVBoxLayout(page);
         QTextEdit *textEdit = new QTextEdit;
@@ -700,21 +929,22 @@ MainWindow::MainWindow(QWidget *parent)
     };
 
     // Tạo 3 trang tương ứng
-    stackedWidget->addWidget(createFeedbackPage("Hãy cho chúng tôi biết bạn thích điều gì..."));
-    stackedWidget->addWidget(createFeedbackPage("Chúng tôi có thể cải thiện điều gì?"));
-    stackedWidget->addWidget(createFeedbackPage("Vui lòng mô tả lỗi bạn gặp phải..."));
+    stackedWidget_fb->addWidget(createFeedbackPage_fb("Hãy cho chúng tôi biết bạn thích điều gì..."));
+    stackedWidget_fb->addWidget(createFeedbackPage_fb("Chúng tôi có thể cải thiện điều gì?"));
+    stackedWidget_fb->addWidget(createFeedbackPage_fb("Vui lòng mô tả lỗi bạn gặp phải..."));
 
-    feedbackContentLayout->addWidget(stackedWidget);
+    feedbackContentLayout->addWidget(stackedWidget_fb);
 
     // Kết nối các radio button để chuyển trang
-    connect(positiveRadio, &QRadioButton::toggled, [=](bool checked){
-        if (checked) stackedWidget->setCurrentIndex(0);
+    // === SỬA LỖI: Dùng các biến _fb ===
+    connect(positiveRadio_fb, &QRadioButton::toggled, [=](bool checked){
+        if (checked) stackedWidget_fb->setCurrentIndex(0);
     });
-    connect(negativeRadio, &QRadioButton::toggled, [=](bool checked){
-        if (checked) stackedWidget->setCurrentIndex(1);
+    connect(negativeRadio_fb, &QRadioButton::toggled, [=](bool checked){
+        if (checked) stackedWidget_fb->setCurrentIndex(1);
     });
-    connect(bugRadio, &QRadioButton::toggled, [=](bool checked){
-        if (checked) stackedWidget->setCurrentIndex(2);
+    connect(bugRadio_fb, &QRadioButton::toggled, [=](bool checked){
+        if (checked) stackedWidget_fb->setCurrentIndex(2);
     });
 
     feedbackContentLayout->addStretch();
@@ -761,6 +991,8 @@ MainWindow::MainWindow(QWidget *parent)
     // Tên thứ và dịch tháng/năm sang Tiếng Việt
     m_calendarPopup->setLocale(QLocale(QLocale::Vietnamese));
 
+    m_calendarPopup->setFirstDayOfWeek(Qt::Monday);
+
     m_calendarPopup->setVerticalHeaderFormat(QCalendarWidget::NoVerticalHeader);
 
     // --- THÊM ĐOẠN CODE NÀY ĐỂ HIGHLIGHT NGÀY HIỆN TẠI ---
@@ -801,28 +1033,26 @@ MainWindow::MainWindow(QWidget *parent)
     noteTitle->setStyleSheet("font-weight: bold; margin-top:10px;");
 
     // Ô nhập + nút thêm
-    QTextEdit *noteInput = new QTextEdit;
-    noteInput->setPlaceholderText("Thêm việc cần làm...");
-    noteInput->setObjectName("noteInput");
-    noteInput->setMaximumHeight(65); // Giới hạn chiều cao, ví dụ: tương đương 3 dòng
+    m_noteInput = new QTextEdit;
+    m_noteInput->setPlaceholderText("Thêm việc cần làm...");
+    m_noteInput->setObjectName("noteInput");
+    m_noteInput->setMaximumHeight(65);
 
     QPushButton *btnAddNote = new QPushButton("+");
-    btnAddNote->setObjectName("btnAddNote"); // <-- THÊM TÊN OBJECT
+    btnAddNote->setObjectName("btnAddNote");
     btnAddNote->setCursor(Qt::PointingHandCursor);
     btnAddNote->setToolTip("Thêm công việc");
 
     QHBoxLayout *addLayout = new QHBoxLayout;
-    addLayout->setContentsMargins(0,0,0,0);
-    addLayout->setSpacing(5);
-    addLayout->addWidget(noteInput);
+    addLayout->addWidget(m_noteInput);
     addLayout->addWidget(btnAddNote);
 
     // Danh sách công việc
-    QListWidget *todoList = new QListWidget;
-    todoList->setObjectName("todoList"); // <-- THÊM TÊN OBJECT
-    todoList->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_todoList = new QListWidget;
+    m_todoList->setObjectName("todoList");
+    m_todoList->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 
-    todoList->verticalScrollBar()->setStyleSheet(
+    m_todoList->verticalScrollBar()->setStyleSheet(
         "QScrollBar::sub-line:vertical {"
         "    border: none;"
         "    background: none;"
@@ -835,7 +1065,7 @@ MainWindow::MainWindow(QWidget *parent)
         "}"
     );
 
-    noteInput->verticalScrollBar()->setStyleSheet(
+    m_noteInput->verticalScrollBar()->setStyleSheet(
         "QScrollBar::sub-line:vertical {"
         "    border: none;"
         "    background: none;"
@@ -852,73 +1082,9 @@ MainWindow::MainWindow(QWidget *parent)
     // XÓA DÒNG sidebarLayout->addWidget(miniCalendar); BỊ LẶP
     sidebarLayout->addWidget(noteTitle);
     sidebarLayout->addLayout(addLayout);
-    sidebarLayout->addWidget(todoList, 1);
+    sidebarLayout->addWidget(m_todoList, 1);
 
-    // ===== HÀM THÊM CÔNG VIỆC (ĐÃ TỐI ƯU HÓA) =====
-    auto addTodoItem = [=]() {
-        QString text = noteInput->toPlainText().trimmed();
-        if (text.isEmpty()) return;
-
-        QListWidgetItem *item = new QListWidgetItem(todoList);
-        QWidget *itemWidget = new QWidget;
-
-        // Giảm lề và khoảng cách một chút để có thêm không gian
-        QHBoxLayout *itemLayout = new QHBoxLayout(itemWidget);
-        itemLayout->setContentsMargins(8, 4, 4, 4); // Lề trái, trên, phải, dưới
-        itemLayout->setSpacing(6);
-
-        // --- CÁC WIDGET CON ---
-        QCheckBox *check = new QCheckBox;
-        QLabel *todoLabel = new QLabel(text);
-        todoLabel->setWordWrap(true);
-
-        // **SỬA LỖI 1: BÁO CHO LAYOUT BIẾT LABEL CÓ THỂ BỊ CO LẠI TỐI ĐA**
-        todoLabel->setMinimumWidth(0);
-        todoLabel->setMaximumWidth(100);
-
-        // **SỬA LỖI 2: ĐẶT CHÍNH SÁCH KÍCH THƯỚC ĐỂ NÚT XÓA KHÔNG BỊ CO LẠI**
-        QPushButton *btnDel = new QPushButton("×");
-        btnDel->setObjectName("btnDeleteTodo");
-        btnDel->setCursor(Qt::PointingHandCursor);
-        btnDel->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed); // Nút luôn có kích thước cố định
-
-        // --- THÊM WIDGET VÀO LAYOUT ---
-        itemLayout->addWidget(check);
-        itemLayout->addWidget(todoLabel, 1); // Tham số 1 để label lấp đầy không gian
-        itemLayout->addWidget(btnDel);
-        itemWidget->setLayout(itemLayout);
-
-        // --- GÁN VÀO LIST ---
-        item->setSizeHint(itemWidget->sizeHint());
-        todoList->addItem(item);
-        todoList->setItemWidget(item, itemWidget);
-        noteInput->clear();
-
-        // --- KẾT NỐI TÍN HIỆU (connect) ---
-        // (Toàn bộ phần connect giữ nguyên như cũ, không cần thay đổi)
-        connect(check, &QCheckBox::checkStateChanged, [=](Qt::CheckState state){
-            bool completed = (state == Qt::Checked);
-            if (completed) {
-                todoLabel->setText(QString("<p style='white-space: normal; word-break: break-all; text-align: justify;'>%1</p>").arg(text.toHtmlEscaped()));
-                todoLabel->setStyleSheet("color: #999; text-decoration: line-through;");
-                check->setStyleSheet("QCheckBox::indicator:checked { image: url(:/resource/icons/check-green.png); }");
-                itemWidget->setStyleSheet("background-color: #f0f0f0;");
-            } else {
-                todoLabel->setText(QString("<p style='white-space: normal; word-break: break-all; text-align: justify;'>%1</p>").arg(text.toHtmlEscaped()));
-                todoLabel->setStyleSheet("");
-                check->setStyleSheet("");
-                itemWidget->setStyleSheet("");
-            }
-        });
-
-        connect(btnDel, &QPushButton::clicked, [=]() {
-            int row = todoList->row(item);
-            delete todoList->takeItem(row);
-        });
-    };
-
-    // --- Thêm bằng nút hoặc phím Enter ---
-    connect(btnAddNote, &QPushButton::clicked, this, addTodoItem);
+    connect(btnAddNote, &QPushButton::clicked, this, &MainWindow::onAddTodoItem);
 
     // THÊM DÒNG KẾT NỐI NÀY
     connect(miniCalendar, &QCalendarWidget::clicked, this, &MainWindow::onDateSelectedFromPopup);
@@ -932,14 +1098,14 @@ MainWindow::MainWindow(QWidget *parent)
 
     m_timeRuler = new TimeRuler;
     m_timeRuler->setObjectName("timeRulerWidget");
-    m_timeRuler->setFixedWidth(60); // Cố định chiều rộng của widget
+    m_timeRuler->setFixedWidth(100); // Cố định chiều rộng của widget
 
     m_calendarView = new CalendarView;
     m_calendarView->setObjectName("mainCalendarView");
 
     m_calendarCorner = new QWidget;
     m_calendarCorner->setObjectName("calendarCornerWidget");
-    m_calendarCorner->setFixedSize(60, 60);
+    m_calendarCorner->setFixedSize(100, 60);
 
 
     // -- BƯỚC 2: THÊM CÁC WIDGET VÀO LAYOUT --
@@ -1003,6 +1169,15 @@ MainWindow::MainWindow(QWidget *parent)
 
     // -- BƯỚC 3: KẾT NỐI TÍN HIỆU (SIGNALS & SLOTS) --
 
+    // --- MỚI: KẾT NỐI SỰ KIỆN CLICK TỪ CÁC VIEW ---
+    connect(m_calendarView, &CalendarView::eventClicked, this, &MainWindow::onEventItemClicked);
+    connect(m_monthView, &MonthViewWidget::eventClicked, this, &MainWindow::onEventItemClicked);
+    connect(m_timetableView, &TimetableViewWidget::eventClicked, this, &MainWindow::onEventItemClicked);
+    connect(m_sessionView, &SessionViewWidget::eventClicked, this, &MainWindow::onEventItemClicked);
+
+    // --- MỚI: KẾT NỐI SỰ KIỆN KÉO THẢ ---
+    connect(m_calendarView, &CalendarView::eventDragged, this, &MainWindow::onEventItemDragged);
+
     connect(m_calendarView->horizontalScrollBar(), &QScrollBar::valueChanged, m_dayHeader, &DayHeader::setScrollOffset);
     connect(m_calendarView->verticalScrollBar(), &QScrollBar::valueChanged, m_timeRuler, &TimeRuler::setScrollOffset);
     connect(tabBar, &QTabBar::currentChanged, this, [=](int index) {
@@ -1011,7 +1186,6 @@ MainWindow::MainWindow(QWidget *parent)
     connect(m_btnPrevWeek, &QPushButton::clicked, this, &MainWindow::showPreviousWeek);
     connect(m_btnNextWeek, &QPushButton::clicked, this, &MainWindow::showNextWeek);
     connect(btnToday, &QPushButton::clicked, this, &MainWindow::showToday);
-    connect(btnNewEvent, &QToolButton::clicked, this, &MainWindow::onNewEventClicked);
     connect(m_calendarPopup, &QCalendarWidget::clicked, this, &MainWindow::onDateSelectedFromPopup);
 
     connect(btnShowHelp, &QToolButton::clicked, this, &MainWindow::toggleHelpPanel);
@@ -1019,19 +1193,6 @@ MainWindow::MainWindow(QWidget *parent)
 
 
     // -- BƯỚC 4: THÊM DỮ LIỆU MẪU --
-    // ...
-    QDate monday = QDate::currentDate().addDays(-(QDate::currentDate().dayOfWeek() - 1));
-
-    m_calendarView->addEvent("Toán rời rạc", QColor("#a7d7f9"), QDateTime(monday, QTime(7, 0)), QDateTime(monday, QTime(11, 30))); // Sửa lại endTime
-    m_monthView->addEvent(new EventItem("Toán rời rạc", QColor("#a7d7f9"), QDateTime(monday, QTime(7, 0)), QDateTime(monday, QTime(11, 30))));
-    m_timetableView->addEvent(new EventItem("Toán rời rạc", QColor("#a7d7f9"), QDateTime(monday, QTime(7, 0)), QDateTime(monday, QTime(11, 30))));
-    m_sessionView->addEvent(new EventItem("Toán rời rạc", QColor("#a7d7f9"), QDateTime(monday, QTime(7, 0)), QDateTime(monday, QTime(11, 30))));
-
-    QDate tuesday = monday.addDays(1);
-    m_calendarView->addEvent("Lập trình HĐT", QColor("#a7d7f9"), QDateTime(tuesday, QTime(13, 0)), QDateTime(tuesday, QTime(17, 30))); // Sửa lại endTime
-    m_monthView->addEvent(new EventItem("Lập trình HĐT", QColor("#a7d7f9"), QDateTime(tuesday, QTime(13, 0)), QDateTime(tuesday, QTime(17, 30))));
-    m_timetableView->addEvent(new EventItem("Lập trình HĐT", QColor("#a7d7f9"), QDateTime(tuesday, QTime(13, 0)), QDateTime(tuesday, QTime(17, 30))));
-    m_sessionView->addEvent(new EventItem("Lập trình HĐT", QColor("#a7d7f9"), QDateTime(tuesday, QTime(13, 0)), QDateTime(tuesday, QTime(17, 30))));
 
     tabBar->setCurrentIndex(0);
     m_toolbarStack->setCurrentIndex(0);
@@ -1063,15 +1224,33 @@ MainWindow::MainWindow(QWidget *parent)
         m_sidebarVisible = !m_sidebarVisible;
     });
 
-    // Đặt độ trong suốt mặc định cho lịch
-    setCalendarTransparency(true);
+    initSavePath();
+    loadData();
+    loadSettings();
 
-    changeBackgroundImage(2, QString(), QColor());
+    // THÊM MỚI: Áp dụng cài đặt đã tải
+    applyTimeSettings();
+    onFilterChanged();
 }
 
 MainWindow::~MainWindow()
 {
+    // --- THÊM MỚI: Lưu dữ liệu khi đóng ---
+    saveData();
+    // ---------------------------------
+
+    // --- THÊM MỚI: Dọn dẹp con trỏ sự kiện ---
+    qDeleteAll(m_allEventItems);
+    m_allEventItems.clear();
+    // ---------------------------------
+
     delete ui;
+}
+
+void MainWindow::closeEvent(QCloseEvent *event)
+{
+    saveData(); // Đảm bảo lưu lần cuối
+    QMainWindow::closeEvent(event);
 }
 
 // ----- CÁC HÀM LOGIC MỚI -----
@@ -1127,19 +1306,40 @@ void MainWindow::updateCalendarDisplay()
     m_dateNavButton->setText(dateRangeText);
     m_calendarPopup->setSelectedDate(m_currentMonday);
 
-    m_dayHeader->updateDates(m_currentMonday);
+    if (m_viewStack->currentWidget() == m_monthView) {
+        // View tháng phải cập nhật header theo T2 của tuần tham chiếu
+        QDate mondayOfReferenceWeek = m_currentMonday.addDays(-(m_currentMonday.dayOfWeek() - 1));
+        m_dayHeader->updateDates(mondayOfReferenceWeek);
+    } else if (m_viewStack->currentWidget() == m_calendarView) {
+        // View timeline cập nhật theo m_currentMonday (vốn là ngày bắt đầu)
+        m_dayHeader->updateDates(m_currentMonday);
+    }
     // --- KẾT THÚC PHẦN SỬA ---
 }
 
 void MainWindow::showPreviousWeek()
 {
-    m_currentMonday = m_currentMonday.addDays(-7);
+    // THÊM MỚI: Kiểm tra view hiện tại
+    if (m_viewStack->currentWidget() == m_monthView) {
+        // Nếu là view tháng, lùi 1 tháng
+        m_currentMonday = m_currentMonday.addMonths(-1);
+    } else {
+        // Logic cũ: lùi 1 tuần
+        m_currentMonday = m_currentMonday.addDays(-7);
+    }
     updateCalendarDisplay();
 }
 
 void MainWindow::showNextWeek()
 {
-    m_currentMonday = m_currentMonday.addDays(7);
+    // THÊM MỚI: Kiểm tra view hiện tại
+    if (m_viewStack->currentWidget() == m_monthView) {
+        // Nếu là view tháng, tiến 1 tháng
+        m_currentMonday = m_currentMonday.addMonths(1);
+    } else {
+        // Logic cũ: tiến 1 tuần
+        m_currentMonday = m_currentMonday.addDays(7);
+    }
     updateCalendarDisplay();
 }
 
@@ -1171,34 +1371,249 @@ void MainWindow::showToday()
 void MainWindow::onNewEventClicked()
 {
     EventDialog dialog(this);
+    dialog.setEventType("Sự kiện");
+    dialog.setTimezoneOffset(m_timezoneOffsetSeconds);
+
     if (dialog.exec() == QDialog::Accepted) {
-        // Lấy dữ liệu từ dialog
-        QString title = dialog.title();
-        QDateTime start = dialog.startDateTime();
-        QDateTime end = dialog.endDateTime();
-        QColor color = dialog.categoryColor(); // <-- THAY ĐỔI: Lấy màu từ danh mục
-
-        m_calendarView->addEvent(title, color, start, end);
-        m_monthView->addEvent(new EventItem(title, color, start, end));
-        m_timetableView->addEvent(new EventItem(title, color, start, end));
-        m_sessionView->addEvent(new EventItem(title, color, start, end));
-
-        // Thêm sự kiện vào CalendarView
-        m_calendarView->addEvent(title, color, start, end);
-
-        // Cập nhật lại view để hiển thị sự kiện mới (quan trọng)
-        // Cần đảm bảo view đang hiển thị đúng tuần chứa sự kiện
-        QDate eventDate = start.date();
-        int daysUntilMonday = eventDate.dayOfWeek() - 1;
-        QDate mondayOfEventWeek = eventDate.addDays(-daysUntilMonday);
-
-        // Nếu tuần của sự kiện khác tuần hiện tại, chuyển view đến tuần đó
-        if (m_currentMonday != mondayOfEventWeek) {
-            m_currentMonday = mondayOfEventWeek;
+        // Chỉ xử lý khi nhấn "Lưu"
+        if (dialog.getEditResult() == EventDialog::EditResult::Save) {
+            addEventFromDialog(dialog);
         }
-
-        updateCalendarDisplay(); // Hàm này sẽ cập nhật cả header và view
     }
+}
+
+void MainWindow::onNewMeetingClicked()
+{
+    EventDialog dialog(this);
+    dialog.setEventType("Cuộc họp");
+    dialog.setTimezoneOffset(m_timezoneOffsetSeconds);
+
+    // Đặt người chủ trì mặc định (ví dụ)
+    // dialog.setHost("email_cua_ban@example.com");
+
+    if (dialog.exec() == QDialog::Accepted) {
+        if (dialog.getEditResult() == EventDialog::EditResult::Save) {
+            addEventFromDialog(dialog);
+        }
+    }
+}
+
+void MainWindow::onNewStudyClicked()
+{
+    EventDialog dialog(this);
+    dialog.setEventType("Học tập");
+    dialog.setTimezoneOffset(m_timezoneOffsetSeconds);
+    if (dialog.exec() == QDialog::Accepted && dialog.getEditResult() == EventDialog::EditResult::Save) {
+        addEventFromDialog(dialog);
+    }
+}
+
+void MainWindow::onNewHolidayClicked()
+{
+    EventDialog dialog(this);
+    dialog.setEventType("Ngày lễ");
+    dialog.setTimezoneOffset(m_timezoneOffsetSeconds);
+    if (dialog.exec() == QDialog::Accepted && dialog.getEditResult() == EventDialog::EditResult::Save) {
+        addEventFromDialog(dialog);
+    }
+}
+
+void MainWindow::onNewAppointmentClicked()
+{
+    EventDialog dialog(this);
+    dialog.setEventType("Cuộc hẹn");
+    dialog.setTimezoneOffset(m_timezoneOffsetSeconds);
+    if (dialog.exec() == QDialog::Accepted && dialog.getEditResult() == EventDialog::EditResult::Save) {
+        addEventFromDialog(dialog);
+    }
+}
+
+// MỚI: Slot xử lý khi sự kiện được nhấn
+void MainWindow::onEventItemClicked(EventItem *item)
+{
+    if (!item) return;
+
+    EventDialog dialog(this);
+    dialog.setTimezoneOffset(m_timezoneOffsetSeconds);
+
+    // 1. Lấy thời gian UTC từ sự kiện
+    QDateTime utcStart = item->startTime();
+    QDateTime utcEnd = item->endTime();
+
+    // 2. Chuyển đổi UTC về giờ hiển thị (Local Time)
+    //    dựa trên múi giờ người dùng đã chọn (m_timezoneOffsetSeconds)
+    QDateTime displayStart = utcStart.toOffsetFromUtc(m_timezoneOffsetSeconds);
+    QDateTime displayEnd = utcEnd.toOffsetFromUtc(m_timezoneOffsetSeconds);
+
+    dialog.setEventData(
+        item->title(),
+        displayStart,
+        displayEnd,
+        item->color(),
+        item->description(),
+        item->showAsStatus(),
+        item->category(),
+        item->isAllDay(),
+        item->recurrenceRule(),
+        item->eventType(),   // Truyền loại sự kiện
+        item->extraData()    // Truyền đối tượng JSON dữ liệu thêm
+        );
+
+    // 1. Mở dialog và chờ kết quả
+    if (dialog.exec() == QDialog::Accepted) {
+        EventDialog::EditResult result = dialog.getEditResult();
+
+        // 2. Kiểm tra xem đây có phải sự kiện lặp không
+        bool isRecurrent = item->recurrenceRule().isRecurrent;
+
+        // --- BẮT ĐẦU LOGIC MỚI ---
+        if (isRecurrent) {
+            // 3. Nếu lặp, hiển thị dialog hỏi "Sự kiện nào?"
+            QMessageBox msgBox(this);
+            msgBox.setWindowTitle("Sự kiện lặp lại");
+            msgBox.setIcon(QMessageBox::Question);
+
+            if (result == EventDialog::EditResult::Save) {
+                msgBox.setText("Bạn muốn áp dụng thay đổi cho sự kiện nào?");
+            } else { // (result == EventDialog::EditResult::Delete)
+                msgBox.setText("Bạn muốn xóa sự kiện nào?");
+            }
+
+            QAbstractButton* pButtonThis = msgBox.addButton("Chỉ sự kiện này", QMessageBox::ActionRole);
+            QAbstractButton* pButtonAll = msgBox.addButton("Tất cả sự kiện trong chuỗi", QMessageBox::ActionRole);
+            msgBox.addButton("Hủy bỏ", QMessageBox::RejectRole);
+
+            msgBox.exec();
+
+            // 4. Xử lý kết quả
+            if (msgBox.clickedButton() == pButtonThis) {
+                if (result == EventDialog::EditResult::Save) {
+                    updateSingleEvent(item, dialog);
+                } else {
+                    deleteSingleEvent(item);
+                }
+            } else if (msgBox.clickedButton() == pButtonAll) {
+                if (result == EventDialog::EditResult::Save) {
+                    updateEventSeries(item, dialog);
+                } else {
+                    deleteEventSeries(item);
+                }
+            }
+            // (Nếu Hủy bỏ thì không làm gì)
+
+        } else {
+            // --- LOGIC CŨ (Sự kiện đơn lẻ, không lặp) ---
+            if (result == EventDialog::EditResult::Save) {
+                // Đơn giản là xóa cũ, thêm mới
+                removeEventFromViews(item);
+                addEventFromDialog(dialog);
+            } else if (result == EventDialog::EditResult::Delete) {
+                removeEventFromViews(item);
+            }
+        }
+        // --- KẾT THÚC LOGIC MỚI ---
+    }
+}
+
+// MỚI: Hàm trợ giúp để xóa sự kiện
+void MainWindow::removeEventFromViews(EventItem *item)
+{
+    // 1. Xóa khỏi danh sách chính
+    m_allEventItems.removeAll(item);
+
+    // 2. Yêu cầu tất cả các view xóa item này
+    m_calendarView->removeEvent(item);
+    m_monthView->removeEvent(item);
+    m_timetableView->removeEvent(item);
+    m_sessionView->removeEvent(item);
+}
+
+// MInd: Hàm trợ giúp để thêm sự kiện (tách từ onNewEventClicked cũ)
+void MainWindow::addEventFromDialog(EventDialog &dialog)
+{
+    QDateTime start = dialog.startDateTime();
+    QDateTime end = dialog.endDateTime();
+    EventDialog::RecurrenceRule rule = dialog.recurrenceRule();
+    bool isAllDayEvent = dialog.isAllDay();
+
+    // BẮT ĐẦU SỬA: Thêm "else"
+    if (rule.isRecurrent) {
+        QDate currentDate = start.date();
+        QTime startTime = start.time();
+        long long durationSecs = start.secsTo(end);
+
+        while (currentDate <= rule.endDate) {
+            if (rule.days.contains(static_cast<Qt::DayOfWeek>(currentDate.dayOfWeek()))) {
+
+                QDateTime newStart;
+                QDateTime newEnd;
+
+                if (isAllDayEvent) {
+                    newStart = QDateTime(currentDate, QTime(0, 0, 0));
+                    newEnd = QDateTime(currentDate, QTime(23, 59, 59));
+                } else {
+                    newStart = QDateTime(currentDate, startTime);
+                    newEnd = newStart.addSecs(durationSecs);
+                }
+
+                EventItem *item = createEventItemFromDialog(dialog, newStart, newEnd);
+
+                m_calendarView->addEvent(item);
+                m_monthView->addEvent(item);
+                m_timetableView->addEvent(item);
+                m_sessionView->addEvent(item);
+            }
+            currentDate = currentDate.addDays(1);
+        }
+    }
+    else // <-- TỪ KHÓA "ELSE" NÀY LÀ QUAN TRỌNG NHẤT
+    {
+        // Sự kiện đơn lẻ
+        EventItem *item = createEventItemFromDialog(dialog, start, end);
+        m_calendarView->addEvent(item);
+        m_monthView->addEvent(item);
+        m_timetableView->addEvent(item);
+        m_sessionView->addEvent(item);
+    }
+    // KẾT THÚC SỬA
+
+    // Cập nhật lại view
+    QDate eventDate = start.date();
+    int daysUntilMonday = eventDate.dayOfWeek() - 1;
+    QDate mondayOfEventWeek = eventDate.addDays(-daysUntilMonday);
+
+    if (m_currentMonday != mondayOfEventWeek) {
+        m_currentMonday = mondayOfEventWeek;
+    }
+    updateCalendarDisplay();
+
+    saveData();
+}
+
+// MỚI: Hàm trợ giúp để tạo EventItem (tránh lặp code)
+EventItem* MainWindow::createEventItemFromDialog(EventDialog &dialog, const QDateTime &start, const QDateTime &end)
+{
+    // === BẮT ĐẦU SỬA ĐỔI ===
+    // 'start' và 'end' từ dialog là LocalTime. Chuyển sang UTC để lưu trữ.
+    QDateTime utcStart = convertToStorageTime(start);
+    QDateTime utcEnd = convertToStorageTime(end);
+    // === KẾT THÚC SỬA ĐỔI ===
+
+    EventItem* item = new EventItem(
+        dialog.title(),
+        dialog.eventColor(),
+        utcStart, utcEnd,
+        dialog.description(),
+        dialog.showAsStatus(),
+        dialog.category(),
+        dialog.isAllDay(),
+        dialog.recurrenceRule(),
+        dialog.getEventType(),   // Lấy loại sự kiện
+        dialog.getExtraData()    // Lấy đối tượng JSON dữ liệu thêm
+        );
+
+    m_allEventItems.append(item);
+    return item;
 }
 
 void MainWindow::onDateSelectedFromPopup(const QDate &date)
@@ -1254,13 +1669,25 @@ void MainWindow::toggleFeedbackPanel()
 void MainWindow::openSettingsDialog()
 {
     SettingsDialog dialog(this);
+
+    // Truyền số giây offset hiện tại vào dialog
+    dialog.setCurrentSettings(m_use24HourFormat, m_timezoneOffsetSeconds);
+
     if (dialog.exec() == QDialog::Accepted) {
-        // Cập nhật cách gọi hàm này
+
+        // Lấy số giây offset mới từ dialog
+        m_timezoneOffsetSeconds = dialog.getSelectedOffsetSeconds();
+        applyTimeSettings(); // Áp dụng cài đặt
+
+        // 2. Áp dụng cài đặt nền (logic cũ)
         changeBackgroundImage(dialog.selectedBackgroundIndex(),
                               dialog.selectedImagePath(),
                               dialog.selectedSolidColor());
 
         setCalendarTransparency(dialog.isCalendarTransparent());
+
+        // 3. THAY ĐỔI: Lưu TẤT CẢ cài đặt vào file riêng
+        saveSettings(&dialog); // <--- THAY THẾ saveData()
     }
 }
 
@@ -1494,4 +1921,1147 @@ void MainWindow::onTimeScaleChanged(int minutes)
     QScrollBar *verticalScrollBar = m_calendarView->verticalScrollBar();
     int scrollToPosition = 7.5 * newHourHeight; // Dùng newHourHeight
     verticalScrollBar->setValue(scrollToPosition);
+}
+
+// Slot này thay thế lambda trong constructor
+void MainWindow::onAddTodoItem()
+{
+    QString text = m_noteInput->toPlainText().trimmed(); // <-- SỬA LẠI
+    if (text.isEmpty()) return;
+
+    addTodoItem(text, false); // Gọi hàm trợ giúp
+    m_noteInput->clear(); // <-- SỬA LẠI
+    saveData(); // Lưu lại
+}
+
+// Hàm trợ giúp (chứa logic lambda cũ)
+void MainWindow::addTodoItem(const QString &text, bool completed)
+{
+    QListWidgetItem *item = new QListWidgetItem(m_todoList);
+    QWidget *itemWidget = new QWidget;
+    QHBoxLayout *itemLayout = new QHBoxLayout(itemWidget);
+    itemLayout->setContentsMargins(8, 4, 4, 4);
+    itemLayout->setSpacing(6);
+
+    QCheckBox *check = new QCheckBox;
+    {
+        // Chặn tín hiệu của 'check' trong phạm vi dấu ngoặc {} này
+        QSignalBlocker blocker(check);
+
+        // Đặt trạng thái ban đầu (sẽ không phát tín hiệu)
+        check->setChecked(completed);
+    }
+
+    QLabel *todoLabel = new QLabel(text);
+    todoLabel->setWordWrap(true);
+    todoLabel->setMinimumWidth(0);
+    todoLabel->setMaximumWidth(100);
+
+    QPushButton *btnDel = new QPushButton("×");
+    btnDel->setObjectName("btnDeleteTodo");
+    btnDel->setCursor(Qt::PointingHandCursor);
+    btnDel->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+
+    itemLayout->addWidget(check);
+    itemLayout->addWidget(todoLabel, 1);
+    itemLayout->addWidget(btnDel);
+    itemWidget->setLayout(itemLayout);
+
+    item->setSizeHint(itemWidget->sizeHint());
+    m_todoList->addItem(item);
+    m_todoList->setItemWidget(item, itemWidget);
+
+    // Cập nhật style ban đầu
+    if (completed) { // (Khối if này an toàn, không cần chặn)
+        todoLabel->setStyleSheet("color: #999; text-decoration: line-through;");
+        itemWidget->setStyleSheet("background-color: #f0f0f0;");
+    }
+
+    // --- THAY ĐỔI: Kết nối với slot của MainWindow ---
+    connect(check, &QCheckBox::checkStateChanged, this, &MainWindow::onTodoItemChanged);
+    connect(btnDel, &QPushButton::clicked, this, &MainWindow::onTodoItemDeleted);
+
+    // (Lưu con trỏ item vào checkbox và nút xóa để tìm lại)
+    check->setProperty("listItem", QVariant::fromValue(item));
+    btnDel->setProperty("listItem", QVariant::fromValue(item));
+}
+
+void MainWindow::onTodoItemChanged(int state)
+{
+    QCheckBox *check = qobject_cast<QCheckBox*>(sender());
+    if (!check) return;
+
+    // Tìm widget cha (container)
+    QWidget *itemWidget = check->parentWidget();
+    if (!itemWidget) return;
+
+    // Tìm label bên cạnh
+    QLabel *todoLabel = itemWidget->findChild<QLabel*>();
+    if (!todoLabel) return;
+
+    bool completed = (state == Qt::Checked);
+    if (completed) {
+        todoLabel->setStyleSheet("color: #999; text-decoration: line-through;");
+        itemWidget->setStyleSheet("background-color: #f0f0f0;");
+    } else {
+        todoLabel->setStyleSheet("");
+        itemWidget->setStyleSheet("");
+    }
+
+    saveData(); // Lưu khi thay đổi
+}
+
+void MainWindow::onTodoItemDeleted()
+{
+    QPushButton *btn = qobject_cast<QPushButton*>(sender());
+    if (!btn) return;
+
+    // Lấy QListWidgetItem* từ property
+    QVariant itemData = btn->property("listItem");
+    if (!itemData.isValid()) return;
+
+    QListWidgetItem *item = itemData.value<QListWidgetItem*>();
+    if (item) {
+        int row = m_todoList->row(item);
+        delete m_todoList->takeItem(row); // Xóa khỏi list
+        saveData(); // Lưu lại
+    }
+}
+
+void MainWindow::initSavePath()
+{
+    // Tìm thư mục chuẩn để lưu data (ví dụ: C:/Users/YourUser/AppData/Local/CalendarApp)
+    QString dataPath = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
+    QDir dir(dataPath);
+    if (!dir.exists()) {
+        dir.mkpath("."); // Tạo thư mục nếu chưa có
+    }
+    m_saveFilePath = dataPath + "/data.json";
+    m_settingsFilePath = dataPath + "/settings.json";
+    // qDebug() << "Data will be saved to:" << m_saveFilePath;
+}
+
+// --- HÀM LƯU DỮ LIỆU ---
+void MainWindow::saveData()
+{
+    QJsonObject rootObject;
+
+    // 1. Lưu tất cả sự kiện
+    QJsonArray eventsArray;
+    for (EventItem *item : m_allEventItems) {
+        eventsArray.append(serializeEvent(item));
+    }
+    rootObject["events"] = eventsArray;
+
+    // 2. Lưu tất cả To-Do
+    QJsonArray todosArray;
+    for (int i = 0; i < m_todoList->count(); ++i) {
+        QListWidgetItem *item = m_todoList->item(i);
+        QWidget *widget = m_todoList->itemWidget(item);
+        if (!widget) continue;
+
+        QCheckBox *check = widget->findChild<QCheckBox*>();
+        QLabel *label = widget->findChild<QLabel*>();
+
+        if (check && label) {
+            QJsonObject todoObject;
+            todoObject["text"] = label->text();
+            todoObject["completed"] = check->isChecked();
+            todosArray.append(todoObject);
+        }
+    }
+    rootObject["todos"] = todosArray;
+
+    // 3. Ghi file
+    QJsonDocument saveDoc(rootObject);
+    QSaveFile saveFile(m_saveFilePath); // Dùng QSaveFile để tránh mất dữ liệu nếu ghi lỗi
+
+    if (saveFile.open(QIODevice::WriteOnly)) {
+        saveFile.write(saveDoc.toJson());
+        saveFile.commit();
+    } else {
+        qWarning() << "Couldn't open save file:" << saveFile.errorString();
+    }
+}
+
+// --- HÀM SERIALIZE 1 SỰ KIỆN ---
+QJsonObject MainWindow::serializeEvent(EventItem *item) const
+{
+    QJsonObject eventObject;
+    eventObject["title"] = item->title();
+    eventObject["color"] = item->color().name(); // Lưu màu dạng hex
+    eventObject["start"] = item->startTime().toString(Qt::ISODate); // Lưu time dạng ISO
+    eventObject["end"] = item->endTime().toString(Qt::ISODate);
+    eventObject["description"] = item->description();
+    eventObject["showAs"] = item->showAsStatus();
+    eventObject["category"] = item->category();
+    eventObject["isAllDay"] = item->isAllDay();
+
+    // Lưu quy tắc lặp
+    QJsonObject recurrenceObject;
+    EventDialog::RecurrenceRule rule = item->recurrenceRule();
+    recurrenceObject["isRecurrent"] = rule.isRecurrent;
+    recurrenceObject["endDate"] = rule.endDate.toString(Qt::ISODate);
+
+    QJsonArray daysArray;
+    for (Qt::DayOfWeek day : rule.days) {
+        daysArray.append(static_cast<int>(day));
+    }
+    recurrenceObject["days"] = daysArray;
+
+    eventObject["recurrence"] = recurrenceObject;
+    eventObject["eventType"] = item->eventType();
+    eventObject["extraData"] = item->extraData();
+    return eventObject;
+}
+
+// --- HÀM TẢI DỮ LIỆU ---
+void MainWindow::loadData()
+{
+    QFile loadFile(m_saveFilePath);
+    if (!loadFile.exists() || !loadFile.open(QIODevice::ReadOnly)) {
+        qWarning() << "Couldn't open data file or file doesn't exist.";
+        return;
+    }
+
+    QByteArray saveData = loadFile.readAll();
+    QJsonDocument loadDoc(QJsonDocument::fromJson(saveData));
+
+    if (loadDoc.isNull() || !loadDoc.isObject()) {
+        qWarning() << "Failed to parse JSON data.";
+        return;
+    }
+
+    QJsonObject rootObject = loadDoc.object();
+
+    // 1. Tải sự kiện
+    if (rootObject.contains("events") && rootObject["events"].isArray()) {
+        loadEvents(rootObject["events"].toArray());
+    }
+
+    // 2. Tải To-Do
+    if (rootObject.contains("todos") && rootObject["todos"].isArray()) {
+        loadTodos(rootObject["todos"].toArray());
+    }
+
+    updateCalendarDisplay(); // Cập nhật lại UI sau khi tải
+}
+
+void MainWindow::loadSettings()
+{
+    QFile loadFile(m_settingsFilePath);
+    if (!loadFile.exists() || !loadFile.open(QIODevice::ReadOnly)) {
+        qWarning() << "Couldn't open settings file, using defaults.";
+        // Nếu file không tồn tại, các giá trị mặc định trong constructor sẽ được dùng
+        applyTimeSettings(); // Áp dụng giờ mặc định
+        changeBackgroundImage(m_currentBackgroundIndex, m_currentImagePath, m_currentSolidColor);
+        setCalendarTransparency(m_isCalendarTransparent);
+        return;
+    }
+
+    QByteArray settingsData = loadFile.readAll();
+    QJsonDocument loadDoc(QJsonDocument::fromJson(settingsData));
+
+    if (loadDoc.isNull() || !loadDoc.isObject()) {
+        qWarning() << "Failed to parse settings.json, using defaults.";
+        return; // Dùng mặc định
+    }
+
+    QJsonObject settingsObject = loadDoc.object();
+
+    // 1. Tải và áp dụng cài đặt giờ
+    // (Dùng giá trị mặc định từ constructor nếu key không tồn tại)
+    m_use24HourFormat = settingsObject.value("use24HourFormat").toBool(m_use24HourFormat);
+    int defaultOffset = QDateTime::currentDateTime().offsetFromUtc();
+    m_timezoneOffsetSeconds = settingsObject.value("timezoneOffsetSeconds").toInt(defaultOffset);
+    applyTimeSettings(); // Áp dụng ngay
+
+    // 2. Tải và áp dụng cài đặt nền
+    int bgIndex = settingsObject.value("backgroundIndex").toInt(m_currentBackgroundIndex);
+    QString imgPath = settingsObject.value("imagePath").toString(m_currentImagePath);
+    QColor color(settingsObject.value("solidColor").toString()); // QColor tự xử lý nếu string rỗng
+    bool isTransparent = settingsObject.value("isTransparent").toBool(m_isCalendarTransparent);
+
+    changeBackgroundImage(bgIndex, imgPath, color.isValid() ? color : m_currentSolidColor);
+    setCalendarTransparency(isTransparent);
+}
+
+// --- HÀM TẢI CÁC SỰ KIỆN ---
+void MainWindow::loadEvents(const QJsonArray &eventsArray)
+{
+    qDeleteAll(m_allEventItems); // Xóa các item cũ (nếu có)
+    m_allEventItems.clear();
+
+    for (int i = 0; i < eventsArray.size(); ++i) {
+        QJsonObject eventObject = eventsArray[i].toObject();
+
+        QString title = eventObject["title"].toString();
+        QColor color(eventObject["color"].toString());
+
+        // === SỬA LỖI QUAN TRỌNG TẠI ĐÂY ===
+        // 1. Đọc QDateTime (nó đã bao gồm thông tin UTC/offset từ file ISO)
+        // Chúng ta lưu trực tiếp vào utcStart / utcEnd
+        QDateTime utcStart = QDateTime::fromString(eventObject["start"].toString(), Qt::ISODate);
+        QDateTime utcEnd = QDateTime::fromString(eventObject["end"].toString(), Qt::ISODate);
+
+        // 2. (XÓA 2 DÒNG GỌI .toUTC() BỊ LỖI Ở ĐÂY)
+        // === KẾT THÚC SỬA LỖI ===
+
+        QString desc = eventObject["description"].toString();
+        QString showAs = eventObject["showAs"].toString();
+        QString category = eventObject["category"].toString();
+        bool isAllDay = eventObject["isAllDay"].toBool();
+
+        EventDialog::RecurrenceRule rule;
+        QJsonObject recurrenceObject = eventObject["recurrence"].toObject();
+        rule.isRecurrent = recurrenceObject["isRecurrent"].toBool();
+        rule.endDate = QDate::fromString(recurrenceObject["endDate"].toString(), Qt::ISODate);
+        QJsonArray daysArray = recurrenceObject["days"].toArray();
+        for (int j = 0; j < daysArray.size(); ++j) {
+            rule.days.append(static_cast<Qt::DayOfWeek>(daysArray[j].toInt()));
+        }
+
+        // Đoạn code này là từ phiên bản cũ (isMeeting, host...)
+        // nó không còn tác dụng nhưng cũng không gây hại,
+        // vì logic "Tương thích ngược" ở dưới đã xử lý đúng.
+        bool isMeeting = eventObject["isMeeting"].toBool(false);
+        QString host = eventObject["host"].toString();
+        QString participants = eventObject["participants"].toString();
+        QString meetingStatus = eventObject["meetingStatus"].toString("Dự kiến");
+
+        QString eventType;
+        QJsonObject extraData;
+
+        // Logic tương thích ngược (Backward Compatibility)
+        // Đoạn này đã ĐÚNG, nó đọc "eventType" và "extraData"
+        if (eventObject.contains("eventType")) {
+            // Đây là file JSON mới (Bình thường)
+            eventType = eventObject["eventType"].toString("Sự kiện");
+            extraData = eventObject["extraData"].toObject();
+        } else if (eventObject.contains("isMeeting")) {
+            // Đây là file JSON cũ (từ Bước 1)
+            bool isMeeting_compat = eventObject["isMeeting"].toBool(false);
+            if (isMeeting_compat) {
+                eventType = "Cuộc họp";
+                extraData["host"] = eventObject["host"].toString();
+                extraData["participants"] = eventObject["participants"].toString();
+                extraData["meetingStatus"] = eventObject["meetingStatus"].toString("Dự kiến");
+            } else {
+                eventType = "Sự kiện";
+            }
+        } else {
+            // File JSON rất cũ (trước khi có Cuộc họp)
+            eventType = "Sự kiện";
+        }
+
+        // Tạo EventItem (với chữ ký constructor mới)
+        EventItem *item = new EventItem(title, color, utcStart, utcEnd,
+                                        desc, showAs, category, isAllDay, rule,
+                                        eventType, extraData
+                                        );
+
+        // Thêm vào danh sách chính và các view
+        m_allEventItems.append(item);
+        m_calendarView->addEvent(item);
+        m_monthView->addEvent(item);
+        m_timetableView->addEvent(item);
+        m_sessionView->addEvent(item);
+    }
+}
+
+// --- HÀM TẢI CÁC GHI CHÚ ---
+void MainWindow::loadTodos(const QJsonArray &todosArray)
+{
+    m_todoList->clear(); // Xóa các item cũ
+
+    for (int i = 0; i < todosArray.size(); ++i) {
+        QJsonObject todoObject = todosArray[i].toObject();
+        QString text = todoObject["text"].toString();
+        bool completed = todoObject["completed"].toBool();
+
+        // Gọi hàm trợ giúp đã được tái cấu trúc
+        addTodoItem(text, completed);
+    }
+}
+
+/**
+ * @brief Cập nhật CHỈ MỘT sự kiện.
+ * Sự kiện này sẽ bị tách ra khỏi chuỗi lặp (trở thành một ngoại lệ).
+ */
+void MainWindow::updateSingleEvent(EventItem *oldItem, EventDialog &dialog)
+{
+    // 1. Xóa sự kiện cũ
+    removeEventFromViews(oldItem);
+    oldItem->deleteLater();
+
+    // 2. Thêm sự kiện mới (đơn lẻ)
+    // Hàm addEventFromDialog sẽ đọc 'dialog',
+    // thấy 'rule.isRecurrent' là false (vì ta đã set ở onEventItemDragged),
+    // và chỉ chạy khối "else" (tạo sự kiện đơn lẻ).
+    addEventFromDialog(dialog);
+
+    // 3. Logic chuyển tuần (quan trọng, từ lần sửa trước)
+    QDate eventStartDate = dialog.startDateTime().date();
+    int daysToMonday = eventStartDate.dayOfWeek() - 1;
+    QDate newMonday = eventStartDate.addDays(-daysToMonday);
+
+    int daysInCurrentView = m_calendarView->getNumberOfDays();
+    QDate currentViewEndDate = m_currentMonday.addDays(daysInCurrentView - 1);
+
+    if (eventStartDate < m_currentMonday ||
+        eventStartDate > currentViewEndDate ||
+        m_viewStack->currentWidget() != m_calendarView)
+    {
+        m_currentMonday = newMonday;
+    }
+
+    // (addEventFromDialog đã gọi saveData và updateCalendarDisplay)
+    // Nhưng chúng ta cần gọi updateCalendarDisplay LẦN NỮA
+    // để đảm bảo view được chuyển (nếu m_currentMonday thay đổi)
+    updateCalendarDisplay();
+}
+
+/**
+ * @brief Hàm trợ giúp: Tái tạo một chuỗi sự kiện từ một ngày bắt đầu cụ thể.
+ *
+ * Hàm này khắc phục lỗi của addEventFromDialog,
+ * vốn bắt đầu lặp từ ngày của sự kiện được chọn,
+ * thay vì ngày bắt đầu thực sự của chuỗi.
+ */
+void MainWindow::recreateEventSeries(EventDialog &dialog, QDate seriesStartDate)
+{
+    // Lấy thông tin series MỚI từ dialog
+    QTime startTime = dialog.startDateTime().time();
+    long long durationSecs = dialog.startDateTime().secsTo(dialog.endDateTime());
+    EventDialog::RecurrenceRule rule = dialog.recurrenceRule();
+    bool isAllDayEvent = dialog.isAllDay();
+
+    // Bắt đầu lặp từ seriesStartDate, KHÔNG PHẢI dialog.startDateTime().date()
+    QDate currentDate = seriesStartDate;
+
+    while (currentDate <= rule.endDate) {
+        if (rule.days.contains(static_cast<Qt::DayOfWeek>(currentDate.dayOfWeek()))) {
+
+            QDateTime newStart;
+            QDateTime newEnd;
+
+            if (isAllDayEvent) {
+                newStart = QDateTime(currentDate, QTime(0, 0, 0));
+                newEnd = QDateTime(currentDate, QTime(23, 59, 59));
+            } else {
+                newStart = QDateTime(currentDate, startTime);
+                newEnd = newStart.addSecs(durationSecs);
+            }
+
+            // Tạo item
+            EventItem *item = createEventItemFromDialog(dialog, newStart, newEnd);
+
+            // Thêm vào các view
+            m_calendarView->addEvent(item);
+            m_monthView->addEvent(item);
+            m_timetableView->addEvent(item);
+            m_sessionView->addEvent(item);
+        }
+        currentDate = currentDate.addDays(1);
+    }
+
+    // Cập nhật và lưu (Hàm gốc addEventFromDialog gọi 2 hàm này)
+    saveData();
+    updateCalendarDisplay();
+}
+
+/**
+ * @brief Cập nhật TOÀN BỘ chuỗi sự kiện.
+ *
+ * SỬA LỖI (Lần 2 - Lỗi "mất sự kiện đầu"):
+ * 1. Tìm ngày bắt đầu sớm nhất (oldSeriesStartDate) của chuỗi CŨ.
+ * 2. Tính toán ngày bắt đầu MỚI (newSeriesStartDate) bằng cách:
+ * a. Tìm khoảng cách (offset) từ oldSeriesStartDate đến sự kiện bị kéo (oldItem).
+ * b. Lấy ngày MỚI của sự kiện bị kéo (newItemDate, từ dialog) và trừ đi offset đó.
+ * 3. Xóa tất cả các sự kiện CŨ.
+ * 4. Gọi hàm 'recreateEventSeries' để tạo chuỗi MỚI,
+ * bắt đầu từ 'newSeriesStartDate' đã tính toán, với thông tin MỚI từ 'dialog'.
+ */
+void MainWindow::updateEventSeries(EventItem *oldItem, EventDialog &dialog)
+{
+    // 1. Lấy quy tắc lặp CŨ (để tìm các sự kiện liên quan)
+    EventDialog::RecurrenceRule oldRule = oldItem->recurrenceRule();
+
+    // 2. Tạo danh sách các item cần xóa VÀ TÌM START DATE GỐC
+    QList<EventItem*> itemsToDelete;
+    // Dùng QDate (vì QDateTime so sánh phức tạp)
+    QDate oldSeriesStartDate = QDate(9999, 1, 1); // Ngày max
+
+    for (EventItem *item : m_allEventItems) {
+        // So sánh 2 quy tắc
+        if (item->recurrenceRule().isRecurrent &&
+            item->recurrenceRule().endDate == oldRule.endDate &&
+            item->recurrenceRule().days == oldRule.days &&
+            item->title() == oldItem->title()) // Thêm kiểm tra title cho chắc
+        {
+            itemsToDelete.append(item);
+
+            // Tìm ngày bắt đầu sớm nhất
+            if (item->startTime().date() < oldSeriesStartDate) {
+                oldSeriesStartDate = item->startTime().date();
+            }
+        }
+    }
+
+    // (Nếu không tìm thấy item nào, seriesStartDate sẽ là ngày max,
+    //  nhưng điều đó không thể xảy ra vì 'oldItem' luôn ở đó)
+    if (itemsToDelete.isEmpty()) {
+        // Failsafe, shouldn't happen
+        qWarning() << "updateEventSeries: Could not find any items to delete.";
+        return;
+    }
+
+
+    // === BẮT ĐẦU SỬA LỖI LOGIC MẤT SỰ KIỆN ===
+
+    // 3. Tính toán ngày bắt đầu MỚI
+
+    // Ngày của 'oldItem' (sự kiện bị kéo) trong chuỗi CŨ
+    QDate oldItemDate = oldItem->startTime().date();
+
+    // Ngày của 'oldItem' (sự kiện bị kéo) trong chuỗi MỚI
+    // (Lấy từ dialog, vì onEventItemDragged/onEventItemClicked đã cập nhật nó)
+    QDate newItemDate = dialog.startDateTime().date();
+
+    // Tính khoảng cách từ sự kiện đầu tiên của chuỗi CŨ đến 'oldItem'
+    qint64 daysFromStartToOldItem = oldSeriesStartDate.daysTo(oldItemDate);
+
+    // Áp dụng khoảng cách đó vào ngày MỚI để tìm ngày bắt đầu MỚI
+    // Ví dụ: oldStart=3/11, oldItem=17/11 (cách 14 ngày)
+    //        newItem=1/11
+    //        => newStart = 1/11 - 14 ngày = 18/10
+    QDate newSeriesStartDate = newItemDate.addDays(-daysFromStartToOldItem);
+
+    // === KẾT THÚC SỬA LỖI LOGIC ===
+
+
+    // 4. Xóa tất cả sự kiện trong chuỗi cũ
+    for (EventItem *item : itemsToDelete) {
+        removeEventFromViews(item); // Xóa khỏi view và danh sách
+        item->deleteLater(); // XÓA ĐỐI TƯỢNG
+    }
+
+    // 5. Thêm lại chuỗi sự kiện MỚI dựa trên dialog, bắt đầu từ newSeriesStartDate
+    // (Thay vì gọi addEventFromDialog, chúng ta gọi hàm helper mới)
+    recreateEventSeries(dialog, newSeriesStartDate);
+}
+
+/**
+ * @brief Xóa CHỈ MỘT sự kiện (tách nó ra khỏi chuỗi).
+ */
+void MainWindow::deleteSingleEvent(EventItem *item)
+{
+    removeEventFromViews(item); // Xóa khỏi view và danh sách
+    item->deleteLater(); // XÓA ĐỐI TƯỢNG
+    saveData(); // LƯU FILE
+    updateCalendarDisplay();
+}
+
+/**
+ * @brief Xóa TOÀN BỘ chuỗi sự kiện.
+ */
+void MainWindow::deleteEventSeries(EventItem *item)
+{
+    // Logic tương tự như updateEventSeries
+    EventDialog::RecurrenceRule rule = item->recurrenceRule();
+
+    QList<EventItem*> itemsToDelete;
+    for (EventItem *it : m_allEventItems) {
+        if (it->recurrenceRule().isRecurrent &&
+            it->recurrenceRule().endDate == rule.endDate &&
+            it->recurrenceRule().days == rule.days &&
+            it->title() == item->title())
+        {
+            itemsToDelete.append(it);
+        }
+    }
+
+    // Xóa tất cả
+    for (EventItem *it : itemsToDelete) {
+        removeEventFromViews(it); // Xóa khỏi view và danh sách
+        it->deleteLater(); // XÓA ĐỐI TƯỢNG
+    }
+
+    saveData(); // LƯU FILE (chỉ 1 lần)
+    updateCalendarDisplay();
+}
+
+void MainWindow::onEventItemDragged(EventItem *item, const QDateTime &newStartTime, const QDateTime &newEndTime)
+{
+    if (!item) return;
+
+    // 1. Tạo Dialog (ảo)
+    EventDialog dialog(this);
+    dialog.setTimezoneOffset(m_timezoneOffsetSeconds);
+
+    // 1. Lấy thời gian UTC từ sự kiện
+    QDateTime utcStart = item->startTime();
+    QDateTime utcEnd = item->endTime();
+
+    // 2. Chuyển đổi UTC về giờ hiển thị (Local Time)
+    //    dựa trên múi giờ người dùng đã chọn (m_timezoneOffsetSeconds)
+    QDateTime displayStart = utcStart.toOffsetFromUtc(m_timezoneOffsetSeconds);
+    QDateTime displayEnd = utcEnd.toOffsetFromUtc(m_timezoneOffsetSeconds);
+
+    // 2. Nạp dữ liệu CŨ
+    dialog.setEventData(
+        item->title(),
+        displayStart,
+        displayEnd,
+        item->color(),
+        item->description(),
+        item->showAsStatus(),
+        item->category(),
+        item->isAllDay(),
+        item->recurrenceRule(),
+        item->eventType(),
+        item->extraData()
+        );
+
+    // 3. GHI ĐÈ thời gian MỚI
+    dialog.setNewStartDateTime(newStartTime);
+    dialog.setNewEndDateTime(newEndTime);
+
+    // 4. Kiểm tra lặp
+    bool isRecurrent = item->recurrenceRule().isRecurrent;
+
+    if (isRecurrent) {
+        // 5. Hiển thị dialog hỏi
+        QMessageBox msgBox(this);
+        // ... (code tạo msgBox, pButtonThis, pButtonAll... giữ nguyên)
+        msgBox.setWindowTitle("Sự kiện lặp lại");
+        msgBox.setIcon(QMessageBox::Question);
+        msgBox.setText("Bạn muốn áp dụng thay đổi thời gian cho sự kiện nào?");
+        QAbstractButton* pButtonThis = msgBox.addButton("Chỉ sự kiện này", QMessageBox::ActionRole);
+        QAbstractButton* pButtonAll = msgBox.addButton("Tất cả sự kiện trong chuỗi", QMessageBox::ActionRole);
+        msgBox.addButton("Hủy bỏ", QMessageBox::RejectRole);
+        msgBox.exec();
+
+        // 6. Xử lý kết quả
+        if (msgBox.clickedButton() == pButtonThis) {
+            // --- BẮT ĐẦU SỬA LỖI ---
+            // Lấy quy tắc lặp CŨ
+            EventDialog::RecurrenceRule singleRule = item->recurrenceRule();
+            // BIẾN NÓ THÀNH "NGOẠI LỆ" (sự kiện đơn lẻ)
+            singleRule.isRecurrent = false;
+            // Cập nhật quy tắc mới vào dialog
+            dialog.setNewRecurrenceRule(singleRule);
+            // --- KẾT THÚC SỬA LỖI ---
+
+            updateSingleEvent(item, dialog);
+
+        } else if (msgBox.clickedButton() == pButtonAll) {
+
+            // 1. Lấy quy tắc lặp CŨ
+            EventDialog::RecurrenceRule newRule = item->recurrenceRule();
+
+            // 2. Tính toán sự thay đổi
+            // Chênh lệch số ngày (ví dụ: T2 -> T4 = 2 ngày)
+            qint64 dragDeltaDays = item->startTime().date().daysTo(newStartTime.date());
+
+            // Ngày trong tuần CŨ (ví dụ: Thứ Hai - Qt::Monday)
+            Qt::DayOfWeek oldDayOfWeek = static_cast<Qt::DayOfWeek>(item->startTime().date().dayOfWeek());
+
+            // Ngày trong tuần MỚI (ví dụ: Thứ Tư - Qt::Wednesday)
+            Qt::DayOfWeek newDayOfWeek = static_cast<Qt::DayOfWeek>(newStartTime.date().dayOfWeek());
+
+            // 3. Cập nhật ngày kết thúc của chuỗi
+            newRule.endDate = newRule.endDate.addDays(dragDeltaDays);
+
+            // 4. Cập nhật NGÀY TRONG TUẦN của quy tắc
+            // Nếu ngày lặp cũ (Thứ Hai) tồn tại trong quy tắc...
+            if (newRule.days.contains(oldDayOfWeek)) {
+                // ... thì xóa TẤT CẢ các Thứ Hai...
+                newRule.days.removeAll(oldDayOfWeek);
+
+                // ... và thêm ngày mới (Thứ Tư)
+                // (Chỉ thêm nếu nó chưa tồn tại để tránh trùng lặp)
+                if (!newRule.days.contains(newDayOfWeek)) {
+                    newRule.days.append(newDayOfWeek);
+                }
+            }
+
+            // 5. Cập nhật quy tắc lặp MỚI vào dialog
+            dialog.setNewRecurrenceRule(newRule);
+
+            // 6. Gọi hàm cập nhật chuỗi
+            // (Hàm này sẽ xóa chuỗi cũ và gọi 'recreateEventSeries'
+            // với quy tắc lặp mới, tạo lại sự kiện vào Thứ Tư 10:00)
+            updateEventSeries(item, dialog);
+        }
+        // (Nếu Hủy bỏ thì không làm gì)
+
+    } else {
+        // 7. Sự kiện đơn lẻ (không lặp)
+        removeEventFromViews(item);
+        addEventFromDialog(dialog);
+    }
+}
+
+void MainWindow::applyTimeSettings()
+{
+    // 1. Áp dụng cho TimeRuler
+    if (m_timeRuler) {
+        m_timeRuler->set24HourFormat(m_use24HourFormat);
+        // XÓA DÒNG NÀY:
+        // m_timeRuler->setUseUTC(m_useUTC);
+        // THAY BẰNG DÒNG NÀY (Bạn sẽ tạo hàm này ở bước 5):
+        m_timeRuler->setTimezoneOffset(m_timezoneOffsetSeconds);
+    }
+
+    // 2. THÔNG BÁO CHO CÁC VIEW
+    // (Bạn sẽ phải sửa TẤT CẢ các view để có hàm này)
+    m_calendarView->setTimezoneOffset(m_timezoneOffsetSeconds);
+    m_monthView->setTimezoneOffset(m_timezoneOffsetSeconds);
+    m_timetableView->setTimezoneOffset(m_timezoneOffsetSeconds);
+    m_sessionView->setTimezoneOffset(m_timezoneOffsetSeconds);
+
+    // 3. Yêu cầu vẽ lại toàn bộ
+    updateCalendarDisplay();
+}
+
+void MainWindow::saveSettings(SettingsDialog *dialog)
+{
+    if (!dialog) return;
+
+    QJsonObject settingsObject;
+
+    // 1. Lưu cài đặt thời gian (từ biến thành viên)
+    settingsObject["use24HourFormat"] = m_use24HourFormat;
+    settingsObject["timezoneOffsetSeconds"] = m_timezoneOffsetSeconds;
+
+    // 2. Lưu cài đặt nền (lấy trực tiếp từ dialog)
+    settingsObject["backgroundIndex"] = dialog->selectedBackgroundIndex();
+    settingsObject["imagePath"] = dialog->selectedImagePath();
+    settingsObject["solidColor"] = dialog->selectedSolidColor().name(); // Lưu màu dạng #rrggbb
+    settingsObject["isTransparent"] = dialog->isCalendarTransparent();
+
+    // 3. Ghi file (settings.json)
+    QJsonDocument saveDoc(settingsObject);
+    QSaveFile saveFile(m_settingsFilePath);
+
+    if (saveFile.open(QIODevice::WriteOnly)) {
+        saveFile.write(saveDoc.toJson());
+        saveFile.commit();
+    } else {
+        qWarning() << "Couldn't open settings file for writing:" << saveFile.errorString();
+    }
+}
+
+/**
+ * @brief Slot này được gọi khi nhấn nút "In".
+ * Nó sẽ in dạng xem lịch hiện tại ra một file PDF.
+ */
+void MainWindow::onPrintToPdf()
+{
+    // 1. Xác định widget (Giữ nguyên)
+    QWidget *currentView = m_viewStack->currentWidget();
+    if (!currentView) return;
+
+    // 2. Hỏi lưu file (Giữ nguyên)
+    QString defaultFileName = QString("Lich_%1.pdf").arg(QDate::currentDate().toString("ddMMyyyy"));
+    QString filePath = QFileDialog::getSaveFileName(this,
+                                                    "Lưu PDF",
+                                                    defaultFileName,
+                                                    "Tệp PDF (*.pdf)");
+    if (filePath.isEmpty()) {
+        return;
+    }
+
+    // 3. Cấu hình máy in (Giữ nguyên - 300 DPI)
+    QPrinter printer;
+    printer.setOutputFormat(QPrinter::PdfFormat);
+    printer.setOutputFileName(filePath);
+    printer.setResolution(300);
+    printer.setFullPage(true);
+
+    // 4. Cấu hình khổ giấy (Giữ nguyên - lề 10mm)
+    QMarginsF margins(10, 10, 10, 10);
+    if (currentView == m_monthView) {
+        printer.setPageLayout(QPageLayout(QPageSize(QPageSize::A4), QPageLayout::Portrait, margins));
+    } else {
+        printer.setPageLayout(QPageLayout(QPageSize(QPageSize::A4), QPageLayout::Landscape, margins));
+    }
+
+    // 5. Khởi tạo QPainter (Giữ nguyên - bật Antialiasing)
+    QPainter painter;
+    if (!painter.begin(&printer)) {
+        qWarning("Không thể khởi tạo painter cho máy in PDF!");
+        return;
+    }
+    painter.setRenderHint(QPainter::Antialiasing);
+    painter.setRenderHint(QPainter::TextAntialiasing);
+    painter.setRenderHint(QPainter::SmoothPixmapTransform);
+
+
+    // 6. Lấy kích thước trang (bằng PIXEL VẬT LÝ) và chuyển sang QRect
+    QRect printerRect = printer.pageRect(QPrinter::DevicePixel).toRect();
+
+
+    // TRƯỜNG HỢP 1: Đang xem Timeline (m_calendarView)
+    if (currentView == m_calendarView)
+    {
+        // 7. Lấy các thành phần
+        QGraphicsScene *scene = m_calendarView->scene();
+        if (!scene) { painter.end(); return; }
+
+        QWidget *corner = m_calendarCorner;
+        QWidget *header = m_dayHeader;
+        // QWidget *view = m_calendarView->viewport(); // Không cần 'view' nữa
+
+        // Tạo thước ảo
+        TimeRuler printRuler;
+        printRuler.set24HourFormat(m_use24HourFormat);
+        printRuler.setHourHeight(m_calendarView->getHourHeight());
+        printRuler.setTimezoneOffset(m_timezoneOffsetSeconds);
+        printRuler.setScrollOffset(0); // In từ đầu (0:00)
+
+        double hourHeight = m_calendarView->getHourHeight(); // Lấy chiều cao 1 giờ
+        double fullHeight = hourHeight * 24.0; // Tính tổng chiều cao 24 giờ
+        printRuler.setFixedSize(m_timeRuler->width(), (int)fullHeight);
+
+        // 8. Tính tổng kích thước LOGIC (pixel ảo)
+        // Lấy chiều rộng logic của 1 ngày
+        double dayWidth = m_calendarView->getDayWidth();
+        int numDays = m_calendarView->getNumberOfDays();
+        double totalDaysWidth = dayWidth * numDays; // Tổng chiều rộng logic của các ngày
+
+        // Kích thước logic tổng = (thước + ngày) x (góc + giờ)
+        QRect totalWidgetRect(0, 0, corner->width() + (int)totalDaysWidth,
+                              corner->height() + (int)fullHeight);
+
+        // 9. Áp dụng biến đổi (Map logic -> vật lý)
+        painter.setViewport(printerRect);
+        painter.setWindow(totalWidgetRect);
+
+        // 10. VẼ CÁC THÀNH PHẦN NỀN
+        // Vẽ góc
+        corner->render(&painter, QPoint(0, 0));
+
+        // Vẽ header (đúng chiều rộng logic)
+        painter.save();
+        painter.translate(corner->width(), 0);
+        header->render(&painter, QPoint(0, 0), QRegion(0, 0, (int)totalDaysWidth, header->height()));
+        painter.restore();
+
+        // Vẽ thước (đúng chiều cao logic)
+        painter.save();
+        painter.translate(0, corner->height());
+        printRuler.render(&painter, QPoint(0, 0), QRegion(0, 0, printRuler.width(), (int)fullHeight));
+        painter.restore();
+
+        // === BẮT ĐẦU VẼ LƯỚI ===
+        painter.save();
+        // Dịch painter đến góc trên bên trái của lưới (dưới header, bên phải ruler)
+        painter.translate(corner->width(), corner->height());
+
+        // Bút vẽ cho đường kẻ chính (mỗi giờ, mỗi ngày)
+        QPen mainGridPen(QColor(224, 224, 224), 1, Qt::SolidLine); // Màu xám nhạt
+        // Bút vẽ cho đường kẻ phụ (30 phút)
+        QPen subGridPen(QColor(240, 240, 240), 1, Qt::DotLine); // Xám nhạt hơn, chấm
+
+        // 1. Vẽ các đường kẻ ngang (chia giờ)
+        for (int i = 0; i < 24; ++i) {
+            // Đường kẻ chính (mỗi giờ)
+            double yMain = i * hourHeight;
+            painter.setPen(mainGridPen);
+            painter.drawLine(QPointF(0, yMain), QPointF(totalDaysWidth, yMain));
+
+            // Đường kẻ phụ (30 phút)
+            double ySub = yMain + (hourHeight / 2.0);
+            painter.setPen(subGridPen);
+            painter.drawLine(QPointF(0, ySub), QPointF(totalDaysWidth, ySub));
+        }
+
+        // 2. Vẽ các đường kẻ dọc (chia ngày)
+        painter.setPen(mainGridPen); // Đảm bảo dùng pen chính
+        for (int i = 1; i <= numDays; ++i) {
+            double x = i * dayWidth;
+            // Vẽ từ trên xuống dưới
+            painter.drawLine(QPointF(x, 0), QPointF(x, fullHeight));
+        }
+
+        painter.restore(); // Hoàn tất vẽ lưới
+        // === KẾT THÚC VẼ LƯỚI ===
+
+        // 11. VẼ CÁC SỰ KIỆN (NỘI DUNG SCENE)
+        painter.save();
+        // Dịch painter đến vị trí lưới
+        painter.translate(corner->width(), corner->height());
+
+        // Chỉ định render TOÀN BỘ scene (bất kể đang cuộn ở đâu)
+        QRectF sourceRect(0, 0, totalDaysWidth, fullHeight); // Vùng logic cần vẽ
+        QRectF targetRect(0, 0, totalDaysWidth, fullHeight); // Vùng đích
+
+        scene->render(&painter, targetRect, sourceRect);
+        painter.restore();
+    }
+    // TRƯỜG HỢP 2: Các view khác
+    else
+    {
+        QWidget *widgetToPrint = currentView;
+
+        // (Code cho các view khác giữ nguyên)
+        if (printerRect.width() == 0 || printerRect.height() == 0) {
+            qWarning("Kích thước máy in không hợp lệ!");
+            painter.end();
+            return;
+        }
+        double printerAspectRatio = (double)printerRect.height() / (double)printerRect.width();
+        int virtualWidth = 1300;
+        int virtualHeight = (int)(virtualWidth * printerAspectRatio);
+        QRect widgetRect(0, 0, virtualWidth, virtualHeight);
+        painter.setViewport(printerRect);
+        painter.setWindow(widgetRect);
+        widgetToPrint->render(&painter);
+    }
+
+    // 12. Hoàn tất
+    painter.end();
+    QMessageBox::information(this, "Hoàn tất", "Đã xuất PDF thành công!");
+}
+
+/**
+ * @brief Mở dialog "Save As" để xuất (sao chép) file data.json
+ * ra vị trí do người dùng chọn để lưu trữ.
+ */
+void MainWindow::onExportData()
+{
+    // 1. Kiểm tra file nguồn (data.json) có tồn tại không
+    if (m_saveFilePath.isEmpty() || !QFile::exists(m_saveFilePath)) {
+        QMessageBox::warning(this, "Lỗi", "Không tìm thấy file dữ liệu nguồn để xuất.");
+        return;
+    }
+
+    // 2. Lấy tên file gốc (ví dụ: "data.json")
+    QFileInfo fileInfo(m_saveFilePath);
+    QString defaultFileName = fileInfo.fileName();
+
+    // 3. Mở dialog "Save As"
+    QString destPath = QFileDialog::getSaveFileName(this,
+                                                    "Xuất dữ liệu lịch",
+                                                    defaultFileName, // Tên file mặc định
+                                                    "Tệp JSON (*.json)");
+
+    if (destPath.isEmpty()) {
+        return; // Người dùng nhấn Cancel
+    }
+
+    // 4. Sao chép file
+    // Xóa file đích nếu nó đã tồn tại (để copy ghi đè)
+    if (QFile::exists(destPath)) {
+        QFile::remove(destPath);
+    }
+
+    if (QFile::copy(m_saveFilePath, destPath)) {
+        QMessageBox::information(this, "Thành công", "Đã xuất dữ liệu thành công!");
+    } else {
+        QMessageBox::critical(this, "Lỗi", "Không thể sao chép file. Vui lòng thử lại.");
+    }
+}
+
+/**
+ * @brief Mở dialog "Open" để nhập file .json,
+ * ghi đè lên file data.json hiện tại và tải lại toàn bộ lịch.
+ */
+void MainWindow::onImportData()
+{
+    // 1. Cảnh báo người dùng về việc ghi đè
+    QMessageBox::StandardButton reply;
+    reply = QMessageBox::question(this, "Xác nhận nhập",
+                                  "Thao tác này sẽ **GHI ĐÈ** toàn bộ dữ liệu lịch hiện tại của bạn.\n"
+                                  "Dữ liệu cũ sẽ bị mất. Bạn có chắc chắn muốn tiếp tục?",
+                                  QMessageBox::Yes | QMessageBox::No);
+
+    if (reply == QMessageBox::No) {
+        return; // Người dùng hủy
+    }
+
+    // 2. Mở dialog "Open"
+    QString sourcePath = QFileDialog::getOpenFileName(this,
+                                                      "Nhập dữ liệu lịch",
+                                                      "", // Thư mục mặc định
+                                                      "Tệp JSON (*.json)");
+
+    if (sourcePath.isEmpty()) {
+        return; // Người dùng nhấn Cancel
+    }
+
+    // 3. Đọc file nguồn
+    QFile sourceFile(sourcePath);
+    if (!sourceFile.open(QIODevice::ReadOnly)) {
+        QMessageBox::critical(this, "Lỗi", "Không thể đọc file nguồn được chọn.");
+        return;
+    }
+    QByteArray fileData = sourceFile.readAll();
+    sourceFile.close();
+
+    // 4. Ghi đè file dữ liệu hiện tại (dùng QSaveFile để an toàn)
+    QSaveFile destFile(m_saveFilePath);
+    if (destFile.open(QIODevice::WriteOnly)) {
+        destFile.write(fileData);
+        if (destFile.commit()) {
+            // 5. Tải lại dữ liệu
+            loadData(); // Tải lại toàn bộ dữ liệu từ file vừa ghi đè
+            QMessageBox::information(this, "Thành công", "Đã nhập và tải lại dữ liệu thành công!");
+        } else {
+            QMessageBox::critical(this, "Lỗi", "Không thể ghi đè file dữ liệu (lỗi commit).");
+        }
+    } else {
+        QMessageBox::critical(this, "Lỗi", "Không thể mở file dữ liệu đích để ghi.");
+    }
+}
+
+/**
+ * @brief Slot này được gọi BẤT CỨ KHI NÀO một mục trong menu Bộ lọc được tick/bỏ tick.
+ * Nhiệm vụ của nó là cập nhật các biến trạng thái (QSet)
+ * và sau đó gọi applyFilters().
+ */
+void MainWindow::onFilterChanged()
+{
+    // 1. Cập nhật danh sách Category (Thể loại)
+    m_visibleCategories.clear();
+    for (QAction *action : m_categoryActions) {
+        if (action->isChecked()) {
+            // (Lấy text và xóa khoảng trắng thừa nếu có)
+            m_visibleCategories.insert(action->text().trimmed());
+        }
+    }
+
+    // 2. Cập nhật danh sách Status (Hiển thị như)
+    m_visibleStatuses.clear();
+    for (QAction *action : m_statusActions) {
+        if (action->isChecked()) {
+            m_visibleStatuses.insert(action->text().trimmed());
+        }
+    }
+
+    // 3. Cập nhật danh sách Recurrence (Lặp lại)
+    m_visibleRecurrenceTypes.clear();
+    for (QAction *action : m_recurrenceActions) {
+        if (action->isChecked()) {
+            m_visibleRecurrenceTypes.insert(action->text().trimmed()); // Sẽ là "Đơn" hoặc "Chuỗi"
+        }
+    }
+
+    // 4. Cập nhật Trạng thái Cuộc họp
+    m_visibleMeetingStatuses.clear();
+    for (QAction *action : m_meetingStatusActions) {
+        if (action->isChecked()) {
+            m_visibleMeetingStatuses.insert(action->text().trimmed());
+        }
+    }
+
+    m_visibleEventTypes.clear();
+    for (QAction *action : m_eventTypeActions) {
+        if (action->isChecked()) m_visibleEventTypes.insert(action->text().trimmed());
+    }
+
+    m_visibleStudyMethods.clear();
+    for (QAction *action : m_studyMethodActions) {
+        if (action->isChecked()) m_visibleStudyMethods.insert(action->text().trimmed());
+    }
+
+    m_visibleHolidayScopes.clear();
+    for (QAction *action : m_holidayScopeActions) {
+        if (action->isChecked()) m_visibleHolidayScopes.insert(action->text().trimmed());
+    }
+
+    m_visibleAppointmentTypes.clear();
+    for (QAction *action : m_appointmentTypeActions) {
+        if (action->isChecked()) m_visibleAppointmentTypes.insert(action->text().trimmed());
+    }
+
+    m_visibleAppointmentPrivacy.clear();
+    for (QAction *action : m_appointmentPrivacyActions) {
+        if (action->isChecked()) m_visibleAppointmentPrivacy.insert(action->text().trimmed());
+    }
+
+    // (Thêm logic cho các bộ lọc khác ở đây: Cuộc hẹn, Lặp lại...)
+    // Ví dụ: bool appointmentVisible = actAppointment->isChecked();
+
+    // 5. Áp dụng bộ lọc mới
+    applyFilters();
+}
+
+/**
+ * @brief Lặp qua tất cả sự kiện và áp dụng bộ lọc hiện tại.
+ */
+void MainWindow::applyFilters()
+{
+    // Lặp qua BẢN GỐC của tất cả sự kiện
+    for (EventItem *item : m_allEventItems) {
+        if (!item) continue;
+
+        // === BƯỚC 1: KIỂM TRA CÁC BỘ LỌC CHUNG ===
+        // (Áp dụng cho TẤT CẢ các sự kiện)
+
+        bool eventTypeMatch = m_visibleEventTypes.contains(item->eventType());
+        bool categoryMatch = m_visibleCategories.contains(item->category());
+        bool statusMatch = m_visibleStatuses.contains(item->showAsStatus());
+        QString itemRecurrenceType = item->recurrenceRule().isRecurrent ? "Chuỗi" : "Đơn";
+        bool recurrenceMatch = m_visibleRecurrenceTypes.contains(itemRecurrenceType);
+
+        // === BƯỚC 2: KIỂM TRA BỘ LỌC CON (SUB-FILTER) ===
+        // (Chỉ áp dụng cho loại sự kiện tương ứng)
+
+        bool subFilterMatch = true; // Mặc định là 'true' (vượt qua)
+
+        // Chỉ kiểm tra bộ lọc con nếu loại sự kiện chính của nó đang được cho phép
+        if (eventTypeMatch)
+        {
+            if (item->eventType() == "Cuộc họp") {
+                // SỬA LỖI: Dùng .value() thay vì ["key"]
+                QString status = item->extraData().value("meetingStatus").toString("Dự kiến");
+                subFilterMatch = m_visibleMeetingStatuses.contains(status);
+            }
+            else if (item->eventType() == "Học tập") {
+                // SỬA LỖI: Dùng .value() thay vì ["key"]
+                QString method = item->extraData().value("studyMethod").toString("Tự học");
+                subFilterMatch = m_visibleStudyMethods.contains(method);
+            }
+            else if (item->eventType() == "Ngày lễ") {
+                // SỬA LỖI: Dùng .value() thay vì ["key"]
+                QString scope = item->extraData().value("holidayScope").toString("Tùy chỉnh");
+                subFilterMatch = m_visibleHolidayScopes.contains(scope);
+            }
+            else if (item->eventType() == "Cuộc hẹn") {
+                // SỬA LỖI: Dùng .value() thay vì ["key"]
+                QString type = item->extraData().value("appointmentType").toString("Khác");
+                bool typeMatch = m_visibleAppointmentTypes.contains(type);
+
+                // SỬA LỖI: Dùng .value() thay vì ["key"]
+                bool isPrivate = item->extraData().value("isPrivate").toBool(false);
+                QString privacy = isPrivate ? "Riêng tư" : "Công khai";
+                bool privacyMatch = m_visibleAppointmentPrivacy.contains(privacy);
+
+                subFilterMatch = typeMatch && privacyMatch;
+            }
+            else if (item->eventType() == "Sự kiện") {
+                // Sự kiện thông thường (Sự kiện) được liên kết với bộ lọc "Cuộc họp"
+                // Nó phải khớp với trạng thái "Không phải cuộc họp"
+                subFilterMatch = m_visibleMeetingStatuses.contains("Không phải cuộc họp");
+            }
+            // (Nếu có loại sự kiện mới không có bộ lọc con, nó sẽ tự động vượt qua vì subFilterMatch = true)
+        }
+
+
+        // === BƯỚC 3: LOGIC LỌC CUỐI CÙNG ===
+        // Sự kiện chỉ hiển thị khi khớp TẤT CẢ các điều kiện
+        bool isVisible = eventTypeMatch &&
+                         categoryMatch &&
+                         statusMatch &&
+                         recurrenceMatch &&
+                         subFilterMatch; // <-- Chỉ cần kiểm tra biến này
+
+        item->setFiltered(!isVisible);
+    }
+
+    // 2. Áp dụng cho các View khác
+    updateCalendarDisplay();
 }

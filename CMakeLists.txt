@@ -13,24 +13,31 @@ find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets PrintSupport)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets PrintSupport)
 
 set(PROJECT_SOURCES
-        main.cpp
-        mainwindow.cpp mainwindow.h
-        mainwindow.ui
         resources.qrc
-        calendarview.cpp calendarview.h
-        eventitem.cpp eventitem.h
-        dayheader.h dayheader.cpp
-        timeruler.h timeruler.cpp
-        eventdialog.h eventdialog.cpp
-        sidepanel.h sidepanel.cpp
-        funnytipwidget.h funnytipwidget.cpp
-        settingsdialog.h settingsdialog.cpp
-        daydetaildialog.h daydetaildialog.cpp
-        daycellwidget.h daycellwidget.cpp
-        monthviewwidget.h monthviewwidget.cpp
-        timetableslotwidget.h timetableslotwidget.cpp
-        timetableviewwidget.h timetableviewwidget.cpp
-        sessionviewwidget.h sessionviewwidget.cpp
+
+        # Nguồn chính (trong 'src/')
+        src/main.cpp
+        src/mainwindow.cpp src/mainwindow.h
+        src/calendarview.cpp src/calendarview.h
+        src/eventitem.cpp src/eventitem.h
+        src/dayheader.h src/dayheader.cpp
+        src/timeruler.h src/timeruler.cpp
+        src/eventdialog.h src/eventdialog.cpp
+        src/sidepanel.h src/sidepanel.cpp
+        src/funnytipwidget.h src/funnytipwidget.cpp
+        src/settingsdialog.h src/settingsdialog.cpp
+        src/daydetaildialog.h src/daydetaildialog.cpp
+        src/daycellwidget.h src/daycellwidget.cpp
+        src/monthviewwidget.h src/monthviewwidget.cpp
+        src/timetableslotwidget.h src/timetableslotwidget.cpp
+        src/timetableviewwidget.h src/timetableviewwidget.cpp
+        src/sessionviewwidget.h src/sessionviewwidget.cpp
+
+        # File UI (trong 'ui/')
+        # CMAKE_AUTOUIC sẽ tự động xử lý các file .ui này
+        ui/mainwindow.ui
+
+        # icon
         appicon.rc
 )
 
@@ -86,3 +93,4 @@ install(TARGETS CalendarApp
 if(QT_VERSION_MAJOR EQUAL 6)
     qt_finalize_executable(CalendarApp)
 endif()
+

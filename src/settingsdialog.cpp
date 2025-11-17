@@ -206,7 +206,7 @@ SettingsDialog::SettingsDialog(QWidget *parent)
     };
     QPushButton *loveButton = createReviewButton(":/resource/icons/love.png", "Tuyệt vời");
     QPushButton *ideaButton = createReviewButton(":/resource/icons/idea.png", "Có ý tưởng");
-    QPushButton *sadButton = createReviewButton(":/resource/icons/sad.png", "Chưa tốt");
+    QPushButton *sadButton = createReviewButton(":/resource/icons/smile.png", "Chưa tốt");
     reviewLayout->addWidget(loveButton);
     reviewLayout->addWidget(ideaButton);
     reviewLayout->addWidget(sadButton);

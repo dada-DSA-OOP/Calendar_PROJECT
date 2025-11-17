@@ -25,18 +25,55 @@ QMenuBar::item:selected {
 -------------------------------- */
 QMenu {
     background-color: #ffffff;
-    border: 1px solid #cccccc;
+    border: 1px solid #e0e0e0; /* Border nhạt hơn */
+    border-radius: 6px; /* Bo góc cho menu */
+    color: #222222;
+    padding: 4px; /* Thêm đệm cho toàn menu */
 }
 QMenu::item {
-    padding: 6px 18px;
+    padding: 8px 24px; /* Tăng đệm cho thoáng */
+    padding-left: 10px;
     font-weight: normal;
+    color: #222222;
+    border-radius: 4px; /* Thêm bo góc cho item */
 }
 QMenu::item:selected {
-    background-color: #e6e6e6;
-    font-weight: 600;
+    /* Dùng màu xanh nhạt (giống timeScaleMenu) */
+    background-color: #e5f3ff;
+    font-weight: 500; /* Đậm vừa phải */
+    color: #111111;
 }
 QMenu::item:checked {
-    background-color: #d6ebff; /* xanh dương nhạt */
+    background-color: #d6ebff;
+}
+QMenu::item:checked:hover {
+    /* Dùng màu đậm hơn màu 'checked' một chút */
+    background-color: #cce3ff;
+
+    /* Giữ lại style của hover bình thường */
+    font-weight: 500;
+    color: #111111;
+}
+QMenu::separator {
+    height: 1px;
+    background-color: #f0f0f0;
+    margin: 4px 4px;
+}
+QMenu::right-arrow {
+    image: url(:/resource/icons/down-arrow.png); /* Icon mũi tên */
+    width: 14px;
+    height: 14px;
+
+    /* === ĐIỀU CHỈNH GIÁ TRỊ === */
+
+    subcontrol-origin: padding;
+    subcontrol-position: center right;
+
+    /* Tăng khoảng cách từ lề phải */
+    right: 5px; /* Sửa từ 10px -> 15px */
+
+    /* Tăng lề trái để chữ không đè lên */
+    margin-left: 20px; /* Sửa từ 15px -> 20px */
 }
 QMenu::indicator {
     width: 14px;
@@ -64,6 +101,7 @@ QPushButton {
     border-radius: 4px;
     padding: 6px 12px;
     font-weight: 500;
+    color: #222222;
 }
 QPushButton:hover {
     background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1,
@@ -139,6 +177,7 @@ QLineEdit, QTextEdit {
     border: 1px solid #cccccc;
     border-radius: 4px;
     padding: 4px;
+    color: #222222;
 }
 
 /* -------------------------------
@@ -149,6 +188,7 @@ QComboBox {
     border: 1px solid #cccccc;
     border-radius: 4px;
     padding: 4px 8px;
+    color: #222222;
 }
 QComboBox:hover {
     border-color: #aaaaaa;
@@ -176,6 +216,7 @@ QGroupBox {
     border: 1px solid #cccccc;
     border-radius: 4px;
     margin-top: 8px;
+    color: #333333;
 }
 QGroupBox::title {
     subcontrol-origin: margin;
@@ -189,6 +230,7 @@ QGroupBox::title {
 -------------------------------- */
 QCheckBox, QRadioButton {
     spacing: 6px;
+    color: #333333;
 }
 
 /* -------------------------------
@@ -261,9 +303,11 @@ QMenu#eventMenu {
 QMenu#eventMenu::item {
     padding: 6px 20px;
     width: 145px;
+    color: #222222;
 }
 QMenu#eventMenu::item:selected {
     background-color: #e5f3ff;
+    color: #222222;
 }
 QMenu#eventMenu::icon {
     margin-left: 26px;
@@ -287,9 +331,11 @@ QMenu#dayMenu, QMenu#dayMenuView {
 QMenu#dayMenu::item, QMenu#dayMenuView::item {
     padding: 6px 20px;
     width: 92px;
+    color: #222222;
 }
 QMenu#dayMenu::item:selected, QMenu#dayMenuView::item:selected {
     background-color: #e5f3ff;
+    color: #111111;
 }
 QMenu#dayMenu::icon, QMenu#dayMenuView::icon {
     margin-left: 20px;
@@ -305,16 +351,17 @@ QToolButton#btnFilter::menu-indicator {
 /* Menu Category */
 QMenu#menuCategory {
     background: white;
-    border: 1px solid black;
 }
 QMenu#menuCategory::icon {
     margin-left: 20px;
 }
 QMenu#menuCategory::item {
     padding: 4px 20px 4px 28px;
+    color: #222222;
 }
 QMenu#menuCategory::item:selected {
     background-color: #e6e6e6;
+    color: #111111;
 }
 
 QToolButton::menu-indicator {
@@ -329,11 +376,13 @@ QMenu#timeScaleMenu::item {
     padding: 10px 25px;           /* Tăng khoảng cách lề cho thoáng */
     background-color: transparent;
     width: 160px;
+    color: #222222;
 }
 
 QMenu#timeScaleMenu::item:selected {
     background-color: #e5f3ff;  /* Nền màu xanh dương nổi bật */
     border-radius: 4px;         /* Bo tròn các góc của vùng chọn */
+    color: #111111;
 }
 
 /* ===================================
@@ -347,6 +396,7 @@ QGraphicsView#mainCalendarView {
 DayHeader, TimeRuler, QWidget#calendarCornerWidget {
     background-color: #ffffff; /* Nền trắng đồng bộ */
     border: none; /* Bỏ hết các border cũ để thiết lập lại */
+    color: #333333;
 }
 
 QWidget#calendarCornerWidget {
@@ -435,6 +485,7 @@ QCalendarWidget QToolButton:hover {
 
 QCalendarWidget QMenu {
     background-color: white;
+    color: #222222;
 }
 
 QCalendarWidget QSpinBox, QCalendarWidget QComboBox {
@@ -443,6 +494,7 @@ QCalendarWidget QSpinBox, QCalendarWidget QComboBox {
     border: none;
     background-color: transparent;
     padding: 5px;
+    color: #333333;
 }
 
 /* --- Lưới ngày tháng --- */
@@ -483,20 +535,7 @@ QCalendarWidget QHeaderView::section {
 -------------------------------- */
 QDialog#EventDialog {
     background-color: #ffffff;
-}
-
-/* --- Nhãn (Tiêu đề, Bắt đầu...) --- */
-EventDialog QLabel {
-    font-size: 9pt;
-    color: #606060;
-    padding-top: 5px;
-}
-
-/* -------------------------------
-   DIALOG TẠO SỰ KIỆN (EventDialog)
--------------------------------- */
-QDialog#EventDialog {
-    background-color: #ffffff;
+    color: #333333;
 }
 
 /* --- Nhãn (Tiêu đề, Bắt đầu...) --- */
@@ -515,6 +554,7 @@ EventDialog QComboBox {
     background-color: transparent;
     border: none;
     border-bottom: 1px solid #dcdcdc; /* Style gạch chân */
+    color: #222222;
 }
 
 EventDialog QLineEdit:focus,
@@ -592,7 +632,22 @@ QPushButton#cancelButton:pressed {
     background-color: #d0d0d0;
 }
 
-/* ... (Toàn bộ style cũ giữ nguyên) ... */
+/* =====================================================
+   STYLE CẬP NHẬT CHO SETTINGS DIALOG (MỚI)
+===================================================== */
+
+QDialog#SettingsDialog {
+    background-color: #ffffff; /* Nền trắng */
+    color: #333333;           /* Chữ màu tối (quan trọng khi ở Dark Mode) */
+}
+
+/* Đảm bảo các widget con cũng có màu chữ đúng */
+QDialog#SettingsDialog QLabel,
+QDialog#SettingsDialog QCheckBox,
+QDialog#SettingsDialog QRadioButton,
+QDialog#SettingsDialog QGroupBox {
+    color: #333333;
+}
 
 /* =====================================================
    STYLE CHUNG CHO CÁC SIDE PANELS
@@ -602,6 +657,7 @@ QPushButton#cancelButton:pressed {
 #sidePanel {
     background-color: rgba(248, 249, 250, 0.88); /* Nền xám nhạt mờ 88% */
     border-left: 1px solid rgba(0, 0, 0, 0.1);
+    color: #333333;
 }
 #sidePanelTitleBar {
     background-color: white;
@@ -658,6 +714,27 @@ QPushButton#cancelButton:pressed {
     margin: 0px 0px 15px 0px; /* Không có margin trái/phải */
     padding: 15px; /* Tăng padding cho thoáng */
     font-family: "Segoe UI", sans-serif;
+    color: #333333;
+}
+
+/* 1. Ép buộc TẤT CẢ các QLabel bên trong #sidePanel phải có màu đen */
+#sidePanel QLabel {
+    color: #333333;
+    background-color: transparent; /* Quan trọng: để nền của label trong suốt */
+}
+
+/* 2. Đảm bảo các nút Radio/Checkbox bên trong cũng có màu đúng */
+#sidePanel QRadioButton,
+#sidePanel QCheckBox {
+    color: #333333;
+}
+
+/* 3. Khôi phục màu xanh cho TIÊU ĐỀ của QGroupBox (vì nó cũng là QLabel) */
+/* Chúng ta cần quy tắc này mạnh hơn quy tắc (#sidePanel QLabel) ở trên */
+#sidePanel QGroupBox::title {
+    color: #005a9e; /* */
+    font-weight: 600;
+    font-size: 11pt;
 }
 
 /* Tiêu đề của khung nội dung */
@@ -675,7 +752,7 @@ QPushButton#cancelButton:pressed {
 /* Style cho nút Submit trong Support Panel */
 #submitButton {
     background-color: #0078d7; /* Màu xanh dương chủ đạo */
-    color: white;
+    color: #0078d7;
     font-weight: 600;
     border: 1px solid #005a9e;
     border-radius: 4px;
@@ -694,6 +771,7 @@ QPushButton#cancelButton:pressed {
 #sidebarCalendar {
     background-color: rgba(252, 252, 252, 0.85); /* Nền trắng mờ 85% */
     border-right: 1px solid rgba(0, 0, 0, 0.1);
+    color: #333333;
 }
 
 /* --- LỊCH CHÍNH (VIEWPORT) --- */
@@ -711,6 +789,7 @@ QPushButton#cancelButton:pressed {
 #dayHeaderWidget, #timeRulerWidget, #calendarCornerWidget {
     background-color: #f5f5f5; /* Màu xám nhạt của Outlook */
     border: none; /* Bỏ các đường viền mặc định không cần thiết */
+    color: #333333;
 }
 
 /* Nền xám cho thanh trạng thái ở dưới cùng */
@@ -732,8 +811,58 @@ QStatusBar#statusbar {
 }
 
 /* =====================================================
-   PHẦN TO-DO LIST (BÊN TRÁI)
+   PHẦN TO-DO LIST (BÊN TRÁI) - (Theme Sáng)
 ===================================================== */
+
+/* --- SIDEBAR BÊN TRÁI --- */
+#sidebarCalendar {
+    background-color: rgba(252, 252, 252, 0.85); /* Nền trắng mờ 85% */
+    border-right: 1px solid rgba(0, 0, 0, 0.1);
+    color: #333333;
+}
+
+/* --- LỊCH NHỎ (Bên trong Sidebar - Theme Sáng) --- */
+/* (Style này là BẮT BUỘC để ghi đè theme tối hệ thống) */
+#sidebarCalendar QCalendarWidget {
+    background-color: #ffffff;
+    border: 1px solid #e0e0e0;
+    color: #333333;
+}
+#sidebarCalendar QCalendarWidget QWidget#qt_calendar_navigationbar {
+    background-color: #ffffff;
+    border-bottom: 1px solid #f0f0f0;
+}
+#sidebarCalendar QCalendarWidget QToolButton {
+    color: #333;
+    background-color: transparent;
+}
+#sidebarCalendar QCalendarWidget QToolButton:hover {
+    background-color: #f0f0f0;
+}
+#sidebarCalendar QCalendarWidget QTableView {
+    background-color: #ffffff;
+    color: #333333;
+    selection-background-color: #0078d7;
+}
+#sidebarCalendar QCalendarWidget QTableView::item {
+    color: #33333F;
+}
+#sidebarCalendar QCalendarWidget QTableView::item:hover {
+    background-color: #f0f0f0;
+}
+#sidebarCalendar QCalendarWidget QTableView::item:selected {
+    background-color: #0078d7;
+    color: white;
+}
+#sidebarCalendar QCalendarWidget QHeaderView::section {
+    background-color: #ffffff;
+    color: #0078d7;
+}
+
+/* --- Tiêu đề Ghi chú (Chữ tối) --- */
+#sidebarCalendar QLabel {
+    color: #333333;
+}
 
 /* --- Ô nhập liệu --- */
 #noteInput {
@@ -743,19 +872,21 @@ QStatusBar#statusbar {
     padding: 6px 2px;
     border-radius: 0;
     font-size: 10pt;
+    color: #222222; /* Chữ tối */
 }
 #noteInput:focus {
     border-bottom: 2px solid #0078d7;
 }
 
 /* --- Nút thêm "+" --- */
+/* (Style nút này không đổi) */
 #btnAddNote {
     background-color: #0078d7;
     color: white;
     font-size: 16pt;
     font-weight: bold;
     border: none;
-    border-radius: 12px; /* Bo tròn */
+    border-radius: 12px;
     min-width: 15px;
     max-width: 15px;
     min-height: 15px;
@@ -774,10 +905,12 @@ QStatusBar#statusbar {
 #todoList {
     background: transparent;
     border: none;
+    color: #333333; /* Chữ tối */
 }
 #todoList::item {
-    background-color: #f7f7f7;
+    background-color: #f7f7f7; /* Nền item sáng */
     border-bottom: 1px solid #e0e0e0;
+    color: #333333; /* Chữ tối */
 }
 #todoList::item:hover {
     background-color: #e6f2ff;
@@ -786,13 +919,14 @@ QStatusBar#statusbar {
 /* --- Checkbox trong danh sách --- */
 #todoList QCheckBox {
     font-size: 10pt;
-    color: #333;
+    color: #333333; /* Chữ tối */
 }
 #todoList QCheckBox::indicator {
     width: 16px;
     height: 16px;
     border-radius: 8px; /* Bo tròn indicator */
     border: 1px solid #999;
+    background-color: #ffffff; /* Nền trắng */
 }
 #todoList QCheckBox::indicator:hover {
     border: 1px solid #0078d7;
@@ -819,13 +953,25 @@ QStatusBar#statusbar {
     opacity: 1;
 }
 
-/* --- Style cho công việc ĐÃ HOÀN THÀNH (dựa vào dynamic property) --- */
+/* --- Style cho công việc ĐÃ HOÀN THÀNH (true) --- */
 #todoItemContainer[completed="true"] {
     background-color: #f0f0f0; /* Nền chuyển sang màu xám rất nhạt */
 }
 
 #todoItemContainer[completed="true"] QCheckBox {
     color: #999; /* Chữ chuyển sang màu xám, tạo cảm giác mờ đi */
+}
+
+/* --- Style cho checkbox ĐÃ HOÀN THÀNH (true) --- */
+/* (Quy tắc này tôi đã thêm ở bước trước, giữ nguyên) */
+#todoList QCheckBox::indicator:checked {
+    background-color: #f0f0f0;
+    border: 1px solid #cccccc;
+    image: url(:/resource/icons/check-green.png);
+}
+#todoList QCheckBox::indicator:checked:hover {
+    background-color: #e0e0e0;
+    border: 1px solid #0078d7;
 }
 
 /* =====================================================
@@ -836,16 +982,19 @@ QStatusBar#statusbar {
 /* Các ô trong View Tháng */
 #monthViewWidget DayCellWidget {
     background-color: #ffffff;
+    color: #222222;
 }
 /* Các ô trong TKB (Tiết và Buổi) */
 #timetableViewWidget TimetableSlotWidget,
 #sessionViewWidget TimetableSlotWidget {
     background-color: #ffffff;
+    color: #222222;
 }
 /* Các header (Tên tiết, Tên buổi) trong TKB */
 #timetableViewWidget QLabel,
 #sessionViewWidget QLabel {
     background-color: #f5f5f5;
+    color: #333333;
 }
 
 /* --- Nền trong suốt (Mica) --- */
@@ -873,6 +1022,7 @@ EventDialog QTextEdit {
     background-color: transparent;
     border: 1px solid #dcdcdc; /* Cho TextEdit viền 4 cạnh */
     border-radius: 4px;
+    color: #222222;
 }
 
 EventDialog QTextEdit:focus {
@@ -898,7 +1048,7 @@ QWidget#recurrenceWidget {
     border: 1px solid #e0e0e0;
     border-radius: 4px;
     padding: 10px 10px 10px 15px; /* Thêm lề trong */
-    /* margin-left: 20px; */ /* <-- XÓA DÒNG NÀY */
+    color: #333333;
 }
 
 /* Reset style cho các label bên trong khung lặp lại */
@@ -906,4 +1056,150 @@ QWidget#recurrenceWidget QLabel {
     font-size: 9pt;
     color: #606060;
     padding-top: 0px; /* Reset padding của label trong form */
+}
+
+/* =====================================================
+   STYLE CHO COMBOBOX DROP-DOWN (PULL DOWN)
+===================================================== */
+QComboBox QAbstractItemView {
+    background-color: #ffffff;
+    border-left: 1px solid #cccccc;
+    border-right: 1px solid #cccccc;
+    color: #222222;
+    selection-background-color: #0078d7;
+    selection-color: white;
+    outline: 0px; /* Bỏ viền focus */
+    padding: 2px;
+}
+
+QComboBox QAbstractItemView::item {
+     padding: 6px 12px;
+     background-color: #d9d9d9;
+     color: #222222;
+}
+
+QComboBox QAbstractItemView::item:hover {
+     background-color: #f0f0f0; /* Giống QMenu */
+     color: #111111;
+}
+
+QComboBox QAbstractItemView::item:selected {
+    background-color: #0078d7; /* Giống QCalendarWidget */
+    color: white;
+}
+
+/* =====================================================
+   STYLE CHO DIALOG THÔNG BÁO (QMessageBox)
+===================================================== */
+QMessageBox {
+    background-color: #ffffff;
+}
+
+QMessageBox QLabel {
+    color: #333333; /* Đặt màu chữ tối để đọc được trên nền trắng */
+    background-color: transparent;
+}
+
+/* Style cho các nút (OK, Cancel, Yes, No) bên trong QMessageBox */
+QMessageBox QPushButton {
+    background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                                      stop:0 #f6f7fa, stop:1 #e0e1e5);
+    border: 1px solid #bdbdbd;
+    border-radius: 4px;
+    padding: 6px 12px;
+    font-weight: 500;
+    color: #222222;
+    min-width: 80px;
+}
+
+QMessageBox QPushButton:hover {
+    background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                                      stop:0 #e9eaf0, stop:1 #d6d7db);
+}
+
+QMessageBox QPushButton:pressed {
+    background-color: #cccccc;
+    border-color: #999999;
+}
+
+/* =====================================================
+   STYLE CHO CHECKBOX VÀ RADIO BUTTON (FIX DARK MODE)
+===================================================== */
+/* Quy tắc này đặt nền trắng cho HỘP CHỌN (indicator)
+   của checkbox và radio button trên toàn ứng dụng.
+*/
+QCheckBox::indicator,
+QRadioButton::indicator {
+    background-color: #ffffff;
+    border: 1px solid #999999; /* Thêm border để thấy rõ */
+    width: 14px;
+    height: 14px;
+}
+
+/* Ghi đè lại style bo góc đã có trong file của bạn */
+QCheckBox::indicator {
+    border-radius: 3px;
+}
+QRadioButton::indicator {
+    border-radius: 8px; /* Bo tròn cho radio */
+}
+
+/* Hiệu ứng khi hover */
+QCheckBox::indicator:hover,
+QRadioButton::indicator:hover {
+    border: 1px solid #0078d7;
+}
+
+/* Style khi được CHỌN (checked)
+   Ghi đè lại nền trắng thành nền xanh.
+*/
+QCheckBox::indicator:checked,
+QRadioButton::indicator:checked {
+    background-color: #0078d7;
+    border: 1px solid #0078d7;
+}
+
+/* Icon tick cho QCheckBox (Lấy từ style QMenu::indicator:checked của bạn) */
+QCheckBox::indicator:checked {
+    image: url(:/resource/icons/tick.png);
+    background-color: #0078d7;
+}
+/* (Qt sẽ tự xử lý chấm tròn cho RadioButton) */
+
+
+/* =====================================================
+   STYLE CHO DIALOG CHỌN MÀU (QColorDialog)
+===================================================== */
+QColorDialog {
+    background-color: #ffffff;
+}
+
+/* Đảm bảo tất cả chữ/nhãn và ô nhập liệu bên trong có màu tối */
+QColorDialog QLabel,
+QColorDialog QLineEdit,
+QColorDialog QSpinBox {
+    color: #333333;
+    background-color: transparent;
+}
+
+/* Style cho các nút (OK, Cancel) bên trong QColorDialog */
+QColorDialog QPushButton {
+    background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                                      stop:0 #f6f7fa, stop:1 #e0e1e5);
+    border: 1px solid #bdbdbd;
+    border-radius: 4px;
+    padding: 6px 12px;
+    font-weight: 500;
+    color: #222222;
+    min-width: 80px;
+}
+
+QColorDialog QPushButton:hover {
+    background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                                      stop:0 #e9eaf0, stop:1 #d6d7db);
+}
+
+QColorDialog QPushButton:pressed {
+    background-color: #cccccc;
+    border-color: #999999;
 }

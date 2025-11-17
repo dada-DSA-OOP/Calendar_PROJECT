@@ -9,8 +9,8 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
-find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets)
+find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets PrintSupport)
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets PrintSupport)
 
 set(PROJECT_SOURCES
         main.cpp
@@ -31,27 +31,13 @@ set(PROJECT_SOURCES
         timetableslotwidget.h timetableslotwidget.cpp
         timetableviewwidget.h timetableviewwidget.cpp
         sessionviewwidget.h sessionviewwidget.cpp
+        appicon.rc
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
     qt_add_executable(CalendarApp
         MANUAL_FINALIZATION
         ${PROJECT_SOURCES}
-
-        calendarview.h calendarview.cpp
-        eventitem.h eventitem.cpp
-        dayheader.h dayheader.cpp
-        timeruler.h timeruler.cpp
-        eventdialog.h eventdialog.cpp
-        sidepanel.h sidepanel.cpp
-        funnytipwidget.h funnytipwidget.cpp
-        settingsdialog.h settingsdialog.cpp
-        daydetaildialog.h daydetaildialog.cpp
-        daycellwidget.h daycellwidget.cpp
-        monthviewwidget.h monthviewwidget.cpp
-        timetableslotwidget.h timetableslotwidget.cpp
-        timetableviewwidget.h timetableviewwidget.cpp
-        sessionviewwidget.h sessionviewwidget.cpp
 
 
 
@@ -74,7 +60,7 @@ else()
     endif()
 endif()
 
-target_link_libraries(CalendarApp PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
+target_link_libraries(CalendarApp PRIVATE Qt${QT_VERSION_MAJOR}::Widgets Qt${QT_VERSION_MAJOR}::PrintSupport)
 
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
 # If you are developing for iOS or macOS you should consider setting an

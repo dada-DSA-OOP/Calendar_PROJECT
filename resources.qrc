@@ -47,5 +47,8 @@
         <file>resource/images/background11.jpg</file>
         <file>resource/images/background12.jpg</file>
         <file>resource/images/background13.jpg</file>
+        <file>resource/icons/vacation.png</file>
+        <file>resource/icons/idea.png</file>
+        <file>resource/icons/love.png</file>
     </qresource>
 </RCC>

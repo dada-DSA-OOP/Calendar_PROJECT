@@ -1,18 +1,23 @@
 #include "funnytipwidget.h"
 #include <QLabel>
-#include <QTimer>
-#include <QPropertyAnimation>
+#include <QTimer>             // Dùng để tạo độ trễ (delay)
+#include <QPropertyAnimation> // Dùng để tạo hiệu ứng fade-in/fade-out
 #include <QHBoxLayout>
-#include <QRandomGenerator>
-#include <algorithm>
+#include <QRandomGenerator>   // Dùng để xáo trộn các mẹo
+#include <algorithm>          // Dùng cho std::shuffle
 
+/**
+ * @brief Hàm dựng của FunnyTipWidget.
+ * @param parent Widget cha (chính là MainWindow).
+ */
 FunnyTipWidget::FunnyTipWidget(QWidget *parent)
     : QWidget(parent), m_parentWidget(parent)
 {
-    setObjectName("funnyTipWidget");
+    setObjectName("funnyTipWidget"); // Đặt tên để style QSS
     setMinimumHeight(50);
-    hide();
+    hide(); // Ẩn đi lúc đầu
 
+    // --- 1. Cài đặt Layout (Icon + Text) ---
     QHBoxLayout *layout = new QHBoxLayout(this);
     layout->setSpacing(15);
     layout->setContentsMargins(20, 10, 20, 10);
@@ -20,40 +25,50 @@ FunnyTipWidget::FunnyTipWidget(QWidget *parent)
     QLabel *iconLabel = new QLabel;
     iconLabel->setPixmap(QPixmap(":/resource/icons/smile.png").scaled(15, 15, Qt::KeepAspectRatio, Qt::SmoothTransformation));
 
-    m_tipLabel = new QLabel;
+    m_tipLabel = new QLabel; // Nhãn để hiển thị văn bản mẹo
     m_tipLabel->setObjectName("funnyTipLabel");
 
     layout->addWidget(iconLabel);
     layout->addWidget(m_tipLabel);
 
-    // --- SỬA LỖI Ở ĐÂY ---
+    // --- 2. Cài đặt Animation ---
+    // (Sửa lỗi: Cần thêm 'this' làm tham số thứ 3)
+    // Animation này sẽ thay đổi thuộc tính "windowOpacity" (độ trong suốt)
     m_animation = new QPropertyAnimation(this, "windowOpacity", this);
-    m_animation->setDuration(500);      // Animation nhanh hơn (0.5 giây)
+    m_animation->setDuration(500);      // Tốc độ: 0.5 giây
     m_animation->setStartValue(0.0);    // Bắt đầu từ trong suốt
     m_animation->setEndValue(1.0);      // Kết thúc ở rõ hoàn toàn
 }
 
-// Hàm public để bắt đầu chu kỳ từ MainWindow
+/**
+ * @brief Hàm công khai (public) để MainWindow "kích hoạt" vòng lặp.
+ */
 void FunnyTipWidget::start()
 {
-    // Bắt đầu chu kỳ sau 2 giây trì hoãn ban đầu
+    // Chờ 2 giây sau khi ứng dụng khởi động rồi mới hiện mẹo đầu tiên
     QTimer::singleShot(2000, this, &FunnyTipWidget::updateAndShowNextTip);
 }
 
+/**
+ * @brief Tính toán lại vị trí (để luôn ở giữa-dưới của cửa sổ cha).
+ */
 void FunnyTipWidget::reposition()
 {
     if (m_parentWidget) {
-        int x = (m_parentWidget->width() - width()) / 2;
-        int y = m_parentWidget->height() - height() + 13;
+        int x = (m_parentWidget->width() - width()) / 2; // Căn giữa theo chiều ngang
+        int y = m_parentWidget->height() - height() + 13; // Đặt ở đáy (có điều chỉnh)
         move(x, y);
     }
 }
 
-// Vòng lặp logic chính
+/**
+ * @brief Vòng lặp logic chính: Lấy mẹo, Fade-in, Chờ, Fade-out, Lặp lại.
+ */
 void FunnyTipWidget::updateAndShowNextTip()
 {
-    // --- BƯỚC 1: CHUẨN BỊ TIP MỚI ---
+    // --- BƯỚC 1: CHUẨN BỊ MẸO MỚI ---
     if (m_tipDeck.isEmpty()) {
+        // Nếu đã hết mẹo, "xào" lại bộ bài
         static const QStringList allTips = {
             "Bạn có thể lên lịch cho mọi thứ, trừ việc uống một cốc nước ngay bây giờ.",
             "Đặt lịch sinh nhật lặp lại hàng năm. Rẻ hơn là mua hoa xin lỗi.",
@@ -96,34 +111,41 @@ void FunnyTipWidget::updateAndShowNextTip()
             "Đóng tab. Tắt thông báo. Làm một việc thôi. Bạn sẽ ngạc nhiên đấy.",
         };
         m_tipDeck = allTips;
+        // Xáo trộn danh sách mẹo một cách ngẫu nhiên
         std::shuffle(m_tipDeck.begin(), m_tipDeck.end(), *QRandomGenerator::global());
     }
+    // Lấy mẹo cuối cùng từ danh sách (và xóa nó khỏi danh sách)
     m_tipLabel->setText(m_tipDeck.takeLast());
-    adjustSize();
-    reposition();
+    adjustSize(); // Tự điều chỉnh kích thước widget cho vừa với text
+    reposition(); // Đặt lại vị trí
 
-    raise();
+    raise(); // Đảm bảo widget này nằm trên các widget khác
 
-    // --- BƯỚC 2: FADE-IN ---
-    setWindowOpacity(0.0);
-    show();
+    // --- BƯỚC 2: FADE-IN (Mờ -> Rõ) ---
+    setWindowOpacity(0.0); // Đặt về trong suốt
+    show(); // Hiển thị widget (vẫn đang trong suốt)
     m_animation->setDirection(QAbstractAnimation::Forward); // Chạy animation tiến (0.0 -> 1.0)
     m_animation->start();
 
-    // --- BƯỚC 3: SAU KHI FADE-IN XONG, ĐỢI 5 GIÂY ---
+    // --- BƯỚC 3: CHỜ (Sau khi Fade-in xong) ---
+    // Kết nối *một lần* với tín hiệu 'finished' của animation
     connect(m_animation, &QPropertyAnimation::finished, this, [this]() {
+        // Ngắt kết nối ngay lập-tức để tránh gọi lại
         disconnect(m_animation, &QPropertyAnimation::finished, this, nullptr);
 
+        // Đặt hẹn giờ 5 giây (hiển thị mẹo trong 5 giây)
         QTimer::singleShot(5000, this, [this]() {
-            // --- BƯỚC 4: SAU KHI ĐỢI XONG, FADE-OUT ---
+
+            // --- BƯỚC 4: FADE-OUT (Rõ -> Mờ) ---
             m_animation->setDirection(QAbstractAnimation::Backward); // Chạy animation ngược (1.0 -> 0.0)
             m_animation->start();
 
-            // --- BƯỚC 5: SAU KHI FADE-OUT XONG, GỌI LẠI HÀM NÀY ĐỂ HIỆN TIP TIẾP THEO ---
+            // --- BƯỚC 5: LẶP LẠI (Sau khi Fade-out xong) ---
+            // Kết nối *một lần* nữa với tín hiệu 'finished'
             connect(m_animation, &QPropertyAnimation::finished, this, [this]() {
                 disconnect(m_animation, &QPropertyAnimation::finished, this, nullptr);
-                hide();
-                updateAndShowNextTip(); // Bắt đầu lại chu kỳ
+                hide(); // Ẩn widget đi
+                updateAndShowNextTip(); // Bắt đầu lại chu kỳ (gọi lại hàm này)
             });
         });
     });

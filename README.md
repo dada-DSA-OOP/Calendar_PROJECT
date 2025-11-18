@@ -9,7 +9,7 @@
   <img src="https://img.shields.io/badge/License-MIT-blue"/>
   <img src="https://img.shields.io/badge/Qt-6.10.0-brightgreen?logo=qt"/>
   <img src="https://img.shields.io/badge/Language-C++ qtwidgets-blue?logo=cplusplus"/>
-  <img src="https://img.shields.io/badge/Version-1.0.1-yellow"/>
+  <img src="https://img.shields.io/badge/Version-1.0.2-yellow"/>
 </p>
 
 # dadaCalendar
@@ -91,7 +91,7 @@ Một trong những điểm nhấn của dadaCalendar là khả năng cá nhân 
 * **Nguyễn Quốc Đạt** - Hoàn thiện tab **Dạng xem**, sidebar minicalendar, ghi chú, console.
 * **Tuấn Kiệt** - Hoàn thiện tab **Trợ giúp**, giao diện hình nền, lưu trữ console.
 
-## Hướng dẫn sử dụng
+## Hướng Dẫn Sử Dụng
 * Hãy tải bản mới nhất tại [releases](https://github.com/dada-DSA-OOP/Calendar_PROJECT/releases). Giải nén và cài đặt bằng file msi.
 
 ## Hướng Dẫn Biên Dịch dành cho dev
